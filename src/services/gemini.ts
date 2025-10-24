@@ -20,8 +20,16 @@ Always be helpful, accurate, and provide detailed responses when analyzing uploa
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ExtractedFile, chunkText, getRelevantChunks } from '../utils/fileExtractor';
 import { ImageGenerationService } from './imageGeneration';
+import { bookFood, FoodBookingResult } from './foodBooking';
+import { bookTicket, TicketBookingResult } from './ticketBooking';
 
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || '');
+
+export type AgenticAction =
+  | { type: 'food_booking'; result: FoodBookingResult }
+  | { type: 'ticket_booking'; result: TicketBookingResult }
+  | { type: 'image_generation'; prompt: string }
+  | null;
 
 export class GeminiService {
   private model;
@@ -88,41 +96,29 @@ export class GeminiService {
 
   sendMessage = async (message: string): Promise<string> => {
     try {
-      // Check if the message is requesting image generation
-      const imageKeywords = ['generate image', 'create image', 'draw', 'picture of', 'image of', 'show me'];
-      const isImageRequest = imageKeywords.some(keyword => 
-        message.toLowerCase().includes(keyword)
-      );
-      
-      if (isImageRequest) {
-        // Extract the image prompt from the message
-        let imagePrompt = message;
-        imageKeywords.forEach(keyword => {
-          const regex = new RegExp(`.*${keyword}\\s*:?\\s*`, 'i');
-          imagePrompt = imagePrompt.replace(regex, '').trim();
-        });
-        
-        if (!imagePrompt) {
-          imagePrompt = message;
+      const detectedAction = this.detectAgenticAction(message);
+
+      if (detectedAction) {
+        if (detectedAction.type === 'image_generation') {
+          return `IMAGE_GENERATION:${detectedAction.prompt}`;
+        } else if (detectedAction.type === 'food_booking') {
+          return 'FOOD_BOOKING_REQUEST';
+        } else if (detectedAction.type === 'ticket_booking') {
+          return 'TICKET_BOOKING_REQUEST';
         }
-        
-        return `IMAGE_GENERATION:${imagePrompt}`;
       }
-      
+
       const context = this.getRelevantContext(message);
       const finalMessage = context + message;
 
-      // Append user message to history
       this.history.push({
         role: 'user',
         parts: [{ text: finalMessage }],
       });
 
-      // Send to chat
       const result = await this.chat.sendMessage(finalMessage);
       const responseText = await result.response.text();
 
-      // Append model reply to history
       this.history.push({
         role: 'model',
         parts: [{ text: responseText }],
@@ -133,6 +129,61 @@ export class GeminiService {
       console.error('Error sending message to Gemini:', error);
       throw new Error('I apologize, but I encountered an issue processing your request. Please try again.');
     }
+  };
+
+  detectAgenticAction = (message: string): AgenticAction => {
+    const lowerMessage = message.toLowerCase();
+
+    const imageKeywords = ['generate image', 'create image', 'draw', 'picture of', 'image of', 'show me'];
+    const isImageRequest = imageKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isImageRequest) {
+      let imagePrompt = message;
+      imageKeywords.forEach(keyword => {
+        const regex = new RegExp(`.*${keyword}\\s*:?\\s*`, 'i');
+        imagePrompt = imagePrompt.replace(regex, '').trim();
+      });
+
+      if (!imagePrompt) {
+        imagePrompt = message;
+      }
+
+      return { type: 'image_generation', prompt: imagePrompt };
+    }
+
+    const foodKeywords = ['order food', 'book food', 'get food', 'food delivery', 'order pizza', 'order burger', 'hungry', 'food order'];
+    const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isFoodRequest) {
+      return { type: 'food_booking', result: {} as FoodBookingResult };
+    }
+
+    const ticketKeywords = ['book ticket', 'buy ticket', 'get ticket', 'book seats', 'concert ticket', 'movie ticket', 'event ticket', 'reserve ticket'];
+    const isTicketRequest = ticketKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isTicketRequest) {
+      return { type: 'ticket_booking', result: {} as TicketBookingResult };
+    }
+
+    return null;
+  };
+
+  executeAgenticAction = async (message: string): Promise<AgenticAction> => {
+    const detectedAction = this.detectAgenticAction(message);
+
+    if (!detectedAction) return null;
+
+    if (detectedAction.type === 'food_booking') {
+      const result = await bookFood(message);
+      return { type: 'food_booking', result };
+    } else if (detectedAction.type === 'ticket_booking') {
+      const result = await bookTicket(message);
+      return { type: 'ticket_booking', result };
+    } else if (detectedAction.type === 'image_generation') {
+      return detectedAction;
+    }
+
+    return null;
   };
   
   generateImage = async (prompt: string): Promise<string> => {

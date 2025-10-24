@@ -3,7 +3,10 @@ import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Z
 import { GeminiService } from './services/gemini';
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
+import { OrderDisplay } from './components/OrderDisplay';
 import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
+import { FoodBookingResult } from './services/foodBooking';
+import { TicketBookingResult } from './services/ticketBooking';
 
 interface Message {
   id: string;
@@ -12,6 +15,8 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
+  orderType?: 'food' | 'ticket';
+  orderData?: FoodBookingResult | TicketBookingResult;
 }
 
 interface Task {
@@ -143,17 +148,15 @@ function App() {
     setIsTyping(true);
 
     try {
-      // Get real AI response from Gemini
       const aiResponse = await geminiService.sendMessage(input);
-      
-      // Check if this is an image generation request
+
       if (aiResponse.startsWith('IMAGE_GENERATION:')) {
         const imagePrompt = aiResponse.replace('IMAGE_GENERATION:', '');
         setIsGeneratingImage(true);
-        
+
         try {
           const imageUrl = await geminiService.generateImage(imagePrompt);
-          
+
           const imageResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
@@ -173,6 +176,62 @@ function App() {
           setMessages(prev => [...prev, errorResponse]);
         } finally {
           setIsGeneratingImage(false);
+        }
+      } else if (aiResponse === 'FOOD_BOOKING_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'food_booking') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'I\'ve processed your food order! Here are the details:',
+              timestamp: new Date(),
+              orderType: 'food',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue processing your food order. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'TICKET_BOOKING_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'ticket_booking') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'I\'ve booked your tickets! Here are the details:',
+              timestamp: new Date(),
+              orderType: 'ticket',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue booking your tickets. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
         }
       } else {
         const response: Message = {
@@ -366,9 +425,17 @@ function App() {
                     <p className="text-sm leading-relaxed">{message.content}</p>
                     {message.imageUrl && message.imagePrompt && (
                       <div className="mt-4">
-                        <ImageDisplay 
-                          imageUrl={message.imageUrl} 
+                        <ImageDisplay
+                          imageUrl={message.imageUrl}
                           prompt={message.imagePrompt}
+                        />
+                      </div>
+                    )}
+                    {message.orderType && message.orderData && (
+                      <div className="mt-4">
+                        <OrderDisplay
+                          orderType={message.orderType}
+                          orderData={message.orderData}
                         />
                       </div>
                     )}

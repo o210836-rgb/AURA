@@ -13,6 +13,7 @@
     "@google/genai": "^1.13.0",
     "@google/generative-ai": "^0.24.1",
     "@huggingface/inference": "^4.6.1",
+    "@supabase/supabase-js": "^2.76.1",
     "lucide-react": "^0.344.0",
     "mammoth": "^1.9.1",
     "pdfjs-dist": "^5.4.54",
