@@ -7,6 +7,7 @@ import { OrderDisplay } from './components/OrderDisplay';
 import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
 import { FoodBookingResult } from './services/foodBooking';
 import { TicketBookingResult } from './services/ticketBooking';
+import { FoodBookingResponse, MovieBookingResponse, BookingsResponse } from './services/fasterbook';
 
 interface Message {
   id: string;
@@ -15,8 +16,8 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
-  orderType?: 'food' | 'ticket';
-  orderData?: FoodBookingResult | TicketBookingResult;
+  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings';
+  orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse;
 }
 
 interface Task {
@@ -227,6 +228,90 @@ function App() {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
             content: 'I apologize, but I encountered an issue booking your tickets. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'FASTERBOOK_FOOD_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'fasterbook_food') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'I\'ve processed your FasterBook food order! Here are the details:',
+              timestamp: new Date(),
+              orderType: 'fasterbook_food',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue with your FasterBook food order. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'FASTERBOOK_MOVIE_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'fasterbook_movie') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'I\'ve processed your FasterBook movie booking! Here are the details:',
+              timestamp: new Date(),
+              orderType: 'fasterbook_movie',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue with your FasterBook movie booking. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'FASTERBOOK_BOOKINGS_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'fasterbook_bookings') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'Here are your FasterBook bookings:',
+              timestamp: new Date(),
+              orderType: 'fasterbook_bookings',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue retrieving your FasterBook bookings. Please try again.',
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);
@@ -486,7 +571,7 @@ function App() {
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    placeholder="Chat with A.U.R.A, upload any document, or ask to generate an image..."
+                    placeholder="Chat with A.U.R.A, book food/movies via FasterBook, upload documents, or generate images..."
                     className="w-full px-6 py-4 bg-white/60 backdrop-blur-sm border border-sage-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500"
                   />
                   

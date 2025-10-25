@@ -1,14 +1,217 @@
 import React from 'react';
-import { CheckCircle2, MapPin, Clock, Calendar, Ticket, UtensilsCrossed, Package } from 'lucide-react';
+import { CheckCircle2, MapPin, Clock, Calendar, Ticket, UtensilsCrossed, Package, Film, List } from 'lucide-react';
 import { FoodBookingResult } from '../services/foodBooking';
 import { TicketBookingResult } from '../services/ticketBooking';
+import {
+  FoodBookingResponse,
+  MovieBookingResponse,
+  BookingsResponse,
+  Booking
+} from '../services/fasterbook';
 
 interface OrderDisplayProps {
-  orderType: 'food' | 'ticket';
-  orderData: FoodBookingResult | TicketBookingResult;
+  orderType: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings';
+  orderData: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse;
 }
 
 export function OrderDisplay({ orderType, orderData }: OrderDisplayProps) {
+  if (orderType === 'fasterbook_food') {
+    const fasterbookOrder = orderData as FoodBookingResponse;
+
+    return (
+      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+            {fasterbookOrder.success ? <CheckCircle2 className="w-6 h-6 text-white" /> : <UtensilsCrossed className="w-6 h-6 text-white" />}
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-orange-900">
+              {fasterbookOrder.success ? 'FasterBook Order Placed!' : 'Order Failed'}
+            </h3>
+            {fasterbookOrder.bookingId && (
+              <p className="text-sm text-orange-700">Booking ID: {fasterbookOrder.bookingId}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {fasterbookOrder.success && (
+            <>
+              <div className="flex items-start space-x-3">
+                <UtensilsCrossed className="w-5 h-5 text-orange-600 mt-1" />
+                <div className="flex-1">
+                  <p className="font-semibold text-orange-900 capitalize">{fasterbookOrder.itemId?.replace(/_/g, ' ')}</p>
+                  <p className="text-sm text-orange-700 mt-1">Quantity: {fasterbookOrder.quantity}</p>
+                </div>
+              </div>
+
+              {fasterbookOrder.address && (
+                <div className="flex items-center space-x-3 pt-3 border-t border-orange-200">
+                  <MapPin className="w-5 h-5 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-orange-700">Delivery Address</p>
+                    <p className="font-semibold text-orange-900">{fasterbookOrder.address}</p>
+                  </div>
+                </div>
+              )}
+
+              {fasterbookOrder.estimatedDelivery && (
+                <div className="flex items-center space-x-3 pt-3 border-t border-orange-200">
+                  <Clock className="w-5 h-5 text-orange-600" />
+                  <div>
+                    <p className="text-sm text-orange-700">Estimated Delivery</p>
+                    <p className="font-semibold text-orange-900">{fasterbookOrder.estimatedDelivery}</p>
+                  </div>
+                </div>
+              )}
+
+              {fasterbookOrder.totalPrice && (
+                <div className="flex items-center justify-between pt-3 border-t border-orange-200">
+                  <span className="font-bold text-lg text-orange-900">Total Amount</span>
+                  <span className="font-bold text-2xl text-orange-600">
+                    ${fasterbookOrder.totalPrice.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className={`${fasterbookOrder.success ? 'bg-orange-100' : 'bg-red-100'} rounded-lg p-3 mt-4`}>
+            <p className={`text-sm ${fasterbookOrder.success ? 'text-orange-800' : 'text-red-800'} text-center`}>
+              {fasterbookOrder.message}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (orderType === 'fasterbook_movie') {
+    const movieOrder = orderData as MovieBookingResponse;
+
+    return (
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center">
+            {movieOrder.success ? <CheckCircle2 className="w-6 h-6 text-white" /> : <Film className="w-6 h-6 text-white" />}
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-purple-900">
+              {movieOrder.success ? 'FasterBook Movie Booked!' : 'Booking Failed'}
+            </h3>
+            {movieOrder.bookingId && (
+              <p className="text-sm text-purple-700">Booking ID: {movieOrder.bookingId}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {movieOrder.success && (
+            <>
+              <div className="flex items-start space-x-3">
+                <Film className="w-5 h-5 text-purple-600 mt-1" />
+                <div className="flex-1">
+                  <p className="font-bold text-purple-900 capitalize">{movieOrder.movieId?.replace(/_/g, ' ')}</p>
+                  {movieOrder.theater && (
+                    <p className="text-sm text-purple-700 mt-1">{movieOrder.theater}</p>
+                  )}
+                </div>
+              </div>
+
+              {movieOrder.showTime && (
+                <div className="flex items-center space-x-3 pt-3 border-t border-purple-200">
+                  <Clock className="w-5 h-5 text-purple-600" />
+                  <div>
+                    <p className="text-sm text-purple-700">Show Time</p>
+                    <p className="font-semibold text-purple-900">
+                      {new Date(movieOrder.showTime).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {movieOrder.seats && movieOrder.seats.length > 0 && (
+                <div className="pt-3 border-t border-purple-200">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <Package className="w-5 h-5 text-purple-600" />
+                    <p className="font-semibold text-purple-900">Seats</p>
+                  </div>
+                  <div className="space-y-1">
+                    {movieOrder.seats.map((seat, index) => (
+                      <div key={index} className="text-sm text-purple-800 bg-purple-100 rounded px-3 py-1 inline-block mr-2">
+                        {seat}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {movieOrder.totalPrice && (
+                <div className="flex items-center justify-between pt-3 border-t border-purple-200">
+                  <span className="font-bold text-lg text-purple-900">Total Amount</span>
+                  <span className="font-bold text-2xl text-purple-600">
+                    ${movieOrder.totalPrice.toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className={`${movieOrder.success ? 'bg-purple-100' : 'bg-red-100'} rounded-lg p-3 mt-4`}>
+            <p className={`text-sm ${movieOrder.success ? 'text-purple-800' : 'text-red-800'} text-center`}>
+              {movieOrder.message}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (orderType === 'fasterbook_bookings') {
+    const bookingsData = orderData as BookingsResponse;
+
+    return (
+      <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-2xl p-6 border-2 border-slate-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-slate-500 rounded-full flex items-center justify-center">
+            <List className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-slate-900">Your FasterBook Bookings</h3>
+            <p className="text-sm text-slate-700">
+              {bookingsData.success && bookingsData.bookings ? `${bookingsData.bookings.length} booking(s) found` : 'No bookings available'}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          {bookingsData.success && bookingsData.bookings && bookingsData.bookings.length > 0 ? (
+            bookingsData.bookings.map((booking: Booking) => (
+              <div key={booking.id} className="bg-white rounded-lg p-4 border border-slate-200">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-slate-900 capitalize">{booking.type}</span>
+                  <span className="text-xs text-slate-600">{new Date(booking.timestamp).toLocaleString()}</span>
+                </div>
+                <div className="text-sm text-slate-700">
+                  <p>Booking ID: {booking.id}</p>
+                  {booking.details && (
+                    <pre className="mt-2 bg-slate-50 p-2 rounded text-xs overflow-auto">
+                      {JSON.stringify(booking.details, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="bg-slate-100 rounded-lg p-4 text-center text-slate-600">
+              {bookingsData.message || 'No bookings found'}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (orderType === 'food') {
     const foodOrder = orderData as FoodBookingResult;
 
@@ -69,7 +272,8 @@ export function OrderDisplay({ orderType, orderData }: OrderDisplayProps) {
     );
   }
 
-  const ticketOrder = orderData as TicketBookingResult;
+  if (orderType === 'ticket') {
+    const ticketOrder = orderData as TicketBookingResult;
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg animate-slideIn">
@@ -138,4 +342,7 @@ export function OrderDisplay({ orderType, orderData }: OrderDisplayProps) {
       </div>
     </div>
   );
+  }
+
+  return null;
 }
