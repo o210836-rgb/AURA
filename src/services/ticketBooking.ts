@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || '',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-);
+let supabase: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!supabase) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      supabase = createClient(supabaseUrl, supabaseKey);
+    }
+  }
+  return supabase;
+}
 
 export interface TicketOrderDetails {
   event: string;
@@ -109,37 +118,41 @@ export async function bookTicket(userRequest: string): Promise<TicketBookingResu
   const userSession = generateUserSession();
 
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .insert({
-        order_type: 'ticket',
+    const client = getSupabaseClient();
+
+    if (client) {
+      const { data, error } = await client
+        .from('orders')
+        .insert({
+          order_type: 'ticket',
+          status: 'confirmed',
+          details: orderDetails,
+          total_amount: totalAmount,
+          user_session: userSession
+        })
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const orderId = data?.id || 'unknown';
+      const bookingReference = `TKT${Date.now().toString().slice(-8).toUpperCase()}`;
+
+      return {
+        success: true,
+        orderId,
+        bookingReference,
+        event: event.name,
+        venue: event.venue,
+        eventDate: date,
+        eventTime: time,
+        seats,
+        ticketType,
+        totalAmount,
         status: 'confirmed',
-        details: orderDetails,
-        total_amount: totalAmount,
-        user_session: userSession
-      })
-      .select()
-      .maybeSingle();
-
-    if (error) throw error;
-
-    const orderId = data?.id || 'unknown';
-    const bookingReference = `TKT${Date.now().toString().slice(-8).toUpperCase()}`;
-
-    return {
-      success: true,
-      orderId,
-      bookingReference,
-      event: event.name,
-      venue: event.venue,
-      eventDate: date,
-      eventTime: time,
-      seats,
-      ticketType,
-      totalAmount,
-      status: 'confirmed',
-      message: `Your tickets have been booked! Booking reference: ${bookingReference}. ${numTickets} ${ticketType} ticket(s) for ${event.name} at ${event.venue} on ${date} at ${time}.`
-    };
+        message: `Your tickets have been booked! Booking reference: ${bookingReference}. ${numTickets} ${ticketType} ticket(s) for ${event.name} at ${event.venue} on ${date} at ${time}.`
+      };
+    }
   } catch (error) {
     console.error('Error saving ticket order:', error);
 

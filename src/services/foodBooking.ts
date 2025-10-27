@@ -1,9 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL || '',
-  import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-);
+let supabase: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseClient() {
+  if (!supabase) {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && supabaseKey) {
+      supabase = createClient(supabaseUrl, supabaseKey);
+    }
+  }
+  return supabase;
+}
 
 export interface FoodOrderDetails {
   restaurant: string;
@@ -107,34 +116,38 @@ export async function bookFood(userRequest: string): Promise<FoodBookingResult> 
   const userSession = generateUserSession();
 
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .insert({
-        order_type: 'food',
+    const client = getSupabaseClient();
+
+    if (client) {
+      const { data, error } = await client
+        .from('orders')
+        .insert({
+          order_type: 'food',
+          status: 'confirmed',
+          details: orderDetails,
+          total_amount: totalAmount,
+          user_session: userSession
+        })
+        .select()
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const orderId = data?.id || 'unknown';
+      const orderNumber = `FD${Date.now().toString().slice(-6)}`;
+
+      return {
+        success: true,
+        orderId,
+        orderNumber,
+        restaurant,
+        items,
+        totalAmount,
+        estimatedDelivery,
         status: 'confirmed',
-        details: orderDetails,
-        total_amount: totalAmount,
-        user_session: userSession
-      })
-      .select()
-      .maybeSingle();
-
-    if (error) throw error;
-
-    const orderId = data?.id || 'unknown';
-    const orderNumber = `FD${Date.now().toString().slice(-6)}`;
-
-    return {
-      success: true,
-      orderId,
-      orderNumber,
-      restaurant,
-      items,
-      totalAmount,
-      estimatedDelivery,
-      status: 'confirmed',
-      message: `Your food order has been confirmed! Order #${orderNumber} from ${restaurant} will arrive by ${estimatedDelivery}.`
-    };
+        message: `Your food order has been confirmed! Order #${orderNumber} from ${restaurant} will arrive by ${estimatedDelivery}.`
+      };
+    }
   } catch (error) {
     console.error('Error saving food order:', error);
 
