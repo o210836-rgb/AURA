@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, LogOut, User } from 'lucide-react';
 import { GeminiService } from './services/gemini';
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -8,6 +8,12 @@ import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
 import { FoodBookingResult } from './services/foodBooking';
 import { TicketBookingResult } from './services/ticketBooking';
 import { FoodBookingResponse, MovieBookingResponse, BookingsResponse, AvailableItemsResponse } from './services/fasterbook';
+import { authService, AuthUser } from './services/auth';
+import { tasksService, TaskType } from './services/tasks';
+import { mockRestaurantApi, mockHotelApi, mockFlightApi, mockRideApi } from './services/mockApis';
+import AuthModal from './components/AuthModal';
+import TaskCenter from './components/TaskCenter';
+import Markdown from './utils/markdown';
 
 interface Message {
   id: string;
@@ -71,6 +77,8 @@ function App() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Initialize Gemini service
   const [geminiService] = useState(() => new GeminiService());
@@ -87,6 +95,20 @@ function App() {
       speed: Math.random() * 2 + 1
     }));
     setParticles(newParticles);
+
+    const loadUser = async () => {
+      const user = await authService.getCurrentUser();
+      setCurrentUser(user);
+    };
+    loadUser();
+
+    const { data: authListener } = authService.onAuthStateChange((user) => {
+      setCurrentUser(user);
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
   }, []);
 
   const handleFileUploaded = (file: ExtractedFile) => {
@@ -506,9 +528,32 @@ function App() {
             </div>
 
             <div className="flex items-center space-x-3">
-              <div className="px-4 py-2 bg-sage-100/50 rounded-full text-sm text-sage-700">
-                {currentView === 'chat' ? 'Conversation Mode' : 'Task Management'}
-              </div>
+              {currentUser ? (
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2 px-4 py-2 bg-sage-100/50 rounded-full">
+                    <User className="w-4 h-4 text-sage-700" />
+                    <span className="text-sm text-sage-700">{currentUser.full_name || currentUser.email}</span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      await authService.signOut();
+                      setCurrentUser(null);
+                    }}
+                    className="p-2 rounded-lg bg-sage-100/50 hover:bg-sage-200/50 transition-colors duration-200"
+                    title="Sign Out"
+                  >
+                    <LogOut className="w-5 h-5 text-sage-600" />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span className="text-sm font-medium">Sign In</span>
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -535,7 +580,11 @@ function App() {
                     ? 'bg-sage-500 text-white rounded-3xl rounded-br-lg' 
                     : 'bg-white/60 backdrop-blur-sm text-sage-800 rounded-3xl rounded-bl-lg border border-sage-200/30'
                   } px-6 py-4 shadow-sm hover:shadow-md transition-all duration-300`}>
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    {message.type === 'assistant' ? (
+                      <Markdown content={message.content} />
+                    ) : (
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    )}
                     {message.imageUrl && message.imagePrompt && (
                       <div className="mt-4">
                         <ImageDisplay
@@ -652,6 +701,11 @@ function App() {
 
         {/* Tasks View */}
         {currentView === 'tasks' && (
+          <TaskCenter />
+        )}
+
+        {/* Old Tasks View (kept for reference) */}
+        {currentView === 'tasks_old' && (
           <div className="p-6 space-y-6">
             <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-6 border border-sage-200/30">
               <h2 className="text-xl font-semibold text-sage-800 mb-4">Active Tasks</h2>
@@ -699,11 +753,19 @@ function App() {
 
       {/* Overlay for mobile */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
+
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          setShowAuthModal(false);
+        }}
+      />
     </div>
   );
 }
