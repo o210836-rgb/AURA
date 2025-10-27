@@ -6,15 +6,98 @@ import {
   FoodBookingResponse,
   MovieBookingResponse,
   BookingsResponse,
-  Booking
+  AvailableItemsResponse,
+  Booking,
+  FoodItem,
+  Movie
 } from '../services/fasterbook';
 
 interface OrderDisplayProps {
-  orderType: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings';
-  orderData: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse;
+  orderType: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
+  orderData: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
 }
 
 export function OrderDisplay({ orderType, orderData }: OrderDisplayProps) {
+  if (orderType === 'fasterbook_menu') {
+    const menuData = orderData as AvailableItemsResponse;
+
+    return (
+      <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-2xl p-6 border-2 border-teal-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-teal-500 rounded-full flex items-center justify-center">
+            <List className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-teal-900">FasterBook Menu</h3>
+            <p className="text-sm text-teal-700">
+              Available items from FasterBook API
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {menuData.success && menuData.food && menuData.food.length > 0 && (
+            <div>
+              <div className="flex items-center space-x-2 mb-3">
+                <UtensilsCrossed className="w-5 h-5 text-teal-600" />
+                <h4 className="font-bold text-teal-900">Available Food Items</h4>
+              </div>
+              <div className="space-y-2">
+                {menuData.food.map((item: FoodItem) => (
+                  <div key={item.id} className="bg-white rounded-lg p-3 border border-teal-200">
+                    <div className="flex justify-between items-center">
+                      <span className="font-semibold text-teal-900">{item.name}</span>
+                      <span className="text-xs font-mono text-teal-600 bg-teal-100 px-2 py-1 rounded">
+                        {item.id}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {menuData.success && menuData.movies && menuData.movies.length > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center space-x-2 mb-3">
+                <Film className="w-5 h-5 text-teal-600" />
+                <h4 className="font-bold text-teal-900">Available Movies</h4>
+              </div>
+              <div className="space-y-2">
+                {menuData.movies.map((movie: Movie) => (
+                  <div key={movie.id} className="bg-white rounded-lg p-3 border border-teal-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="font-semibold text-teal-900">{movie.name}</span>
+                      <span className="text-xs font-mono text-teal-600 bg-teal-100 px-2 py-1 rounded">
+                        {movie.id}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Clock className="w-4 h-4 text-teal-500" />
+                      <div className="flex flex-wrap gap-2">
+                        {movie.showTimes.map((time, idx) => (
+                          <span key={idx} className="text-xs text-teal-700 bg-teal-50 px-2 py-1 rounded">
+                            {new Date(time).toLocaleString()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!menuData.success && (
+            <div className="bg-red-100 rounded-lg p-4 text-center text-red-800">
+              {menuData.message || 'Failed to load menu items'}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (orderType === 'fasterbook_food') {
     const fasterbookOrder = orderData as FoodBookingResponse;
 

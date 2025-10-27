@@ -7,7 +7,7 @@ import { OrderDisplay } from './components/OrderDisplay';
 import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
 import { FoodBookingResult } from './services/foodBooking';
 import { TicketBookingResult } from './services/ticketBooking';
-import { FoodBookingResponse, MovieBookingResponse, BookingsResponse } from './services/fasterbook';
+import { FoodBookingResponse, MovieBookingResponse, BookingsResponse, AvailableItemsResponse } from './services/fasterbook';
 
 interface Message {
   id: string;
@@ -16,8 +16,8 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
-  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings';
-  orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse;
+  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
+  orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
 }
 
 interface Task {
@@ -312,6 +312,34 @@ function App() {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
             content: 'I apologize, but I encountered an issue retrieving your FasterBook bookings. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'FASTERBOOK_MENU_REQUEST') {
+        setIsTyping(true);
+
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+
+          if (agenticAction && agenticAction.type === 'fasterbook_menu') {
+            const orderResponse: Message = {
+              id: (Date.now() + 1).toString(),
+              type: 'assistant',
+              content: 'Here\'s the FasterBook menu with all available items:',
+              timestamp: new Date(),
+              orderType: 'fasterbook_menu',
+              orderData: agenticAction.result
+            };
+            setMessages(prev => [...prev, orderResponse]);
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue retrieving the FasterBook menu. Please try again.',
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);

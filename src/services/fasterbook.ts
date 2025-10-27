@@ -51,13 +51,49 @@ export interface BookingsResponse {
   error?: string;
 }
 
+export interface FoodItem {
+  id: string;
+  name: string;
+}
+
+export interface Movie {
+  id: string;
+  name: string;
+  showTimes: string[];
+}
+
+export interface AvailableItemsResponse {
+  success: boolean;
+  food?: FoodItem[];
+  movies?: Movie[];
+  message?: string;
+  error?: string;
+}
+
 export class FasterBookService {
   private apiUrl: string;
   private apiKey: string;
+  private availableItemsCache: AvailableItemsResponse | null = null;
+  private cacheTimestamp: number = 0;
+  private readonly CACHE_DURATION = 5 * 60 * 1000;
 
   constructor() {
     this.apiUrl = FASTERBOOK_API;
     this.apiKey = API_KEY;
+  }
+
+  async getAvailableItemsCached(): Promise<AvailableItemsResponse> {
+    const now = Date.now();
+    if (this.availableItemsCache && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
+      return this.availableItemsCache;
+    }
+
+    const result = await this.getAvailableItems();
+    if (result.success) {
+      this.availableItemsCache = result;
+      this.cacheTimestamp = now;
+    }
+    return result;
   }
 
   async bookFood(params: FoodBookingParams): Promise<FoodBookingResponse> {
@@ -159,6 +195,42 @@ export class FasterBookService {
       };
     } catch (error) {
       console.error('FasterBook get bookings error:', error);
+      return {
+        success: false,
+        message: 'Failed to connect to FasterBook API',
+        error: error instanceof Error ? error.message : 'Network error',
+      };
+    }
+  }
+
+  async getAvailableItems(): Promise<AvailableItemsResponse> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/available`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: data.message || 'Failed to fetch available items',
+          error: data.error || 'Unknown error',
+        };
+      }
+
+      return {
+        success: true,
+        food: data.food || [],
+        movies: data.movies || [],
+        message: 'Available items retrieved successfully',
+      };
+    } catch (error) {
+      console.error('FasterBook get available items error:', error);
       return {
         success: false,
         message: 'Failed to connect to FasterBook API',

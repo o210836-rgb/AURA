@@ -39,6 +39,7 @@ export type AgenticAction =
   | { type: 'fasterbook_food'; result: FoodBookingResponse }
   | { type: 'fasterbook_movie'; result: MovieBookingResponse }
   | { type: 'fasterbook_bookings'; result: BookingsResponse }
+  | { type: 'fasterbook_menu'; result: AvailableItemsResponse }
   | { type: 'image_generation'; prompt: string }
   | null;
 
@@ -124,6 +125,8 @@ export class GeminiService {
           return 'FASTERBOOK_MOVIE_REQUEST';
         } else if (detectedAction.type === 'fasterbook_bookings') {
           return 'FASTERBOOK_BOOKINGS_REQUEST';
+        } else if (detectedAction.type === 'fasterbook_menu') {
+          return 'FASTERBOOK_MENU_REQUEST';
         }
       }
 
@@ -205,6 +208,13 @@ export class GeminiService {
       return { type: 'fasterbook_bookings', result: {} as BookingsResponse };
     }
 
+    const showMenuKeywords = ['show menu', 'view menu', 'what food', 'what movies', 'available items', 'fasterbook menu', 'list menu'];
+    const isShowMenu = showMenuKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isShowMenu) {
+      return { type: 'fasterbook_menu', result: {} as AvailableItemsResponse };
+    }
+
     return null;
   };
 
@@ -230,6 +240,9 @@ export class GeminiService {
     } else if (detectedAction.type === 'fasterbook_bookings') {
       const result = await this.fasterBookService.getBookings();
       return { type: 'fasterbook_bookings', result };
+    } else if (detectedAction.type === 'fasterbook_menu') {
+      const result = await this.fasterBookService.getAvailableItems();
+      return { type: 'fasterbook_menu', result };
     } else if (detectedAction.type === 'image_generation') {
       return detectedAction;
     }
@@ -238,21 +251,33 @@ export class GeminiService {
   };
 
   private async extractFoodParams(message: string): Promise<FoodBookingParams> {
+    const availableItems = await this.fasterBookService.getAvailableItemsCached();
+
+    let availableItemsList = '';
+    if (availableItems.success && availableItems.food) {
+      availableItemsList = availableItems.food.map(item => `- ${item.id}: ${item.name}`).join('\n');
+    }
+
     const extractionPrompt = `Extract food booking details from this message: "${message}"
+
+AVAILABLE FOOD ITEMS (use ONLY these IDs):
+${availableItemsList || 'No available items listed'}
 
 Return ONLY a valid JSON object with these exact fields:
 {
-  "itemId": "<food_item_name_lowercase_with_underscores>",
+  "itemId": "<food_item_id_from_available_list>",
   "quantity": <number>,
   "address": "<delivery_address>"
 }
 
-Examples:
-- "Order 2 chicken biryani to Dorm A Room 12" → {"itemId":"chicken_biryani","quantity":2,"address":"Dorm A Room 12"}
-- "Get me 3 pizzas at Building B, Floor 3" → {"itemId":"pizza","quantity":3,"address":"Building B, Floor 3"}
+IMPORTANT: The itemId MUST match one of the IDs from the available items list above.
 
-If any field is missing, make reasonable assumptions:
-- itemId: extract main food item name
+Examples:
+- "Order 2 chicken biryani to Dorm A Room 12" → {"itemId":"biryani_chicken","quantity":2,"address":"Dorm A Room 12"}
+- "Get me 3 pizzas at Building B, Floor 3" → {"itemId":"pizza_margherita","quantity":3,"address":"Building B, Floor 3"}
+
+If any field is missing:
+- itemId: match to closest available item from the list
 - quantity: default to 1 if not specified
 - address: use "Default delivery location" if not specified
 
@@ -265,8 +290,17 @@ Return ONLY the JSON object, no explanations.`;
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+
+        let itemId = parsed.itemId || 'pizza_margherita';
+        if (availableItems.success && availableItems.food) {
+          const validItem = availableItems.food.find(item => item.id === itemId);
+          if (!validItem && availableItems.food.length > 0) {
+            itemId = availableItems.food[0].id;
+          }
+        }
+
         return {
-          itemId: parsed.itemId || 'food_item',
+          itemId,
           quantity: parsed.quantity || 1,
           address: parsed.address || 'Default delivery location'
         };
@@ -276,7 +310,7 @@ Return ONLY the JSON object, no explanations.`;
     } catch (error) {
       console.error('Error extracting food params:', error);
       return {
-        itemId: 'food_item',
+        itemId: 'pizza_margherita',
         quantity: 1,
         address: 'Default delivery location'
       };
@@ -284,23 +318,39 @@ Return ONLY the JSON object, no explanations.`;
   }
 
   private async extractMovieParams(message: string): Promise<MovieBookingParams> {
+    const availableItems = await this.fasterBookService.getAvailableItemsCached();
+
+    let availableMoviesList = '';
+    if (availableItems.success && availableItems.movies) {
+      availableMoviesList = availableItems.movies.map(movie =>
+        `- ${movie.id}: ${movie.name} (Showtimes: ${movie.showTimes.join(', ')})`
+      ).join('\n');
+    }
+
     const extractionPrompt = `Extract movie booking details from this message: "${message}"
+
+AVAILABLE MOVIES (use ONLY these IDs and showtimes):
+${availableMoviesList || 'No available movies listed'}
 
 Return ONLY a valid JSON object with these exact fields:
 {
-  "movieId": "<movie_identifier>",
+  "movieId": "<movie_id_from_available_list>",
   "seats": ["<seat1>", "<seat2>"],
-  "showTime": "<ISO_8601_datetime>"
+  "showTime": "<ISO_8601_datetime_from_available_showtimes>"
 }
 
-Examples:
-- "Book 2 seats for Avengers at 7 PM tomorrow" → {"movieId":"avengers","seats":["A1","A2"],"showTime":"2025-10-26T19:00:00"}
-- "Get me 3 tickets for Inception, seats B5, B6, B7 at 9:30 PM today" → {"movieId":"inception","seats":["B5","B6","B7"],"showTime":"2025-10-25T21:30:00"}
+IMPORTANT:
+- The movieId MUST match one of the IDs from the available movies list above
+- The showTime should match one of the available showtimes for that movie
 
-If any field is missing, make reasonable assumptions:
-- movieId: extract movie name or use "movie_101"
-- seats: generate array like ["A1", "A2"] based on number of tickets
-- showTime: use tomorrow at 7 PM in ISO format
+Examples:
+- "Book 2 seats for Space Adventures at 7:30 PM" → {"movieId":"mov_101","seats":["A1","A2"],"showTime":"2025-10-30T19:30:00"}
+- "Get me 3 tickets for Action Blast, seats B5, B6, B7" → {"movieId":"mov_303","seats":["B5","B6","B7"],"showTime":"2025-10-30T21:00:00"}
+
+If any field is missing:
+- movieId: match to closest available movie from the list
+- seats: generate array like ["A1", "A2"] based on number of tickets mentioned
+- showTime: use the first available showtime for the selected movie
 
 Return ONLY the JSON object, no explanations.`;
 
@@ -311,10 +361,24 @@ Return ONLY the JSON object, no explanations.`;
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsed = JSON.parse(jsonMatch[0]);
+
+        let movieId = parsed.movieId || 'mov_101';
+        let showTime = parsed.showTime;
+
+        if (availableItems.success && availableItems.movies) {
+          const validMovie = availableItems.movies.find(movie => movie.id === movieId);
+          if (!validMovie && availableItems.movies.length > 0) {
+            movieId = availableItems.movies[0].id;
+            showTime = availableItems.movies[0].showTimes[0];
+          } else if (validMovie && !showTime) {
+            showTime = validMovie.showTimes[0];
+          }
+        }
+
         return {
-          movieId: parsed.movieId || 'movie_101',
+          movieId,
           seats: parsed.seats || ['A1', 'A2'],
-          showTime: parsed.showTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          showTime: showTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
         };
       }
 
@@ -322,7 +386,7 @@ Return ONLY the JSON object, no explanations.`;
     } catch (error) {
       console.error('Error extracting movie params:', error);
       return {
-        movieId: 'movie_101',
+        movieId: 'mov_101',
         seats: ['A1', 'A2'],
         showTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       };
