@@ -31,7 +31,7 @@ import {
   BookingsResponse
 } from './fasterbook';
 
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyBsueiN62CF8-qzda3T_h3ZZU74Q2G6Juw');
+const genAI = new GoogleGenerativeAI('AIzaSyBsueiN62CF8-qzda3T_h3ZZU74Q2G6Juw');
 
 export type AgenticAction =
   | { type: 'food_booking'; result: FoodBookingResult }
