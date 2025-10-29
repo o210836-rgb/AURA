@@ -28,8 +28,10 @@ import {
   MovieBookingParams,
   FoodBookingResponse,
   MovieBookingResponse,
-  BookingsResponse
+  BookingsResponse,
+  AvailableItemsResponse
 } from './fasterbook';
+import { mockRestaurantApi, mockHotelApi, mockFlightApi, mockRideApi, RestaurantOrder, HotelBooking, FlightBooking, RideBooking } from './mockApis';
 
 const genAI = new GoogleGenerativeAI('AIzaSyBsueiN62CF8-qzda3T_h3ZZU74Q2G6Juw');
 
@@ -40,6 +42,10 @@ export type AgenticAction =
   | { type: 'fasterbook_movie'; result: MovieBookingResponse }
   | { type: 'fasterbook_bookings'; result: BookingsResponse }
   | { type: 'fasterbook_menu'; result: AvailableItemsResponse }
+  | { type: 'restaurant_order'; result: RestaurantOrder }
+  | { type: 'hotel_booking'; result: HotelBooking }
+  | { type: 'flight_booking'; result: FlightBooking }
+  | { type: 'ride_booking'; result: RideBooking }
   | { type: 'image_generation'; prompt: string }
   | null;
 
@@ -127,6 +133,14 @@ export class GeminiService {
           return 'FASTERBOOK_BOOKINGS_REQUEST';
         } else if (detectedAction.type === 'fasterbook_menu') {
           return 'FASTERBOOK_MENU_REQUEST';
+        } else if (detectedAction.type === 'restaurant_order') {
+          return 'RESTAURANT_ORDER_REQUEST';
+        } else if (detectedAction.type === 'hotel_booking') {
+          return 'HOTEL_BOOKING_REQUEST';
+        } else if (detectedAction.type === 'flight_booking') {
+          return 'FLIGHT_BOOKING_REQUEST';
+        } else if (detectedAction.type === 'ride_booking') {
+          return 'RIDE_BOOKING_REQUEST';
         }
       }
 
@@ -215,6 +229,34 @@ export class GeminiService {
       return { type: 'fasterbook_menu', result: {} as AvailableItemsResponse };
     }
 
+    const restaurantKeywords = ['order restaurant', 'food delivery', 'order pizza', 'order burger', 'get me food', 'delivery food', 'restaurant order'];
+    const isRestaurant = restaurantKeywords.some(keyword => lowerMessage.includes(keyword)) && !lowerMessage.includes('fasterbook');
+
+    if (isRestaurant) {
+      return { type: 'restaurant_order', result: {} as RestaurantOrder };
+    }
+
+    const hotelKeywords = ['book hotel', 'reserve hotel', 'hotel booking', 'book room', 'hotel reservation', 'stay at hotel'];
+    const isHotel = hotelKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isHotel) {
+      return { type: 'hotel_booking', result: {} as HotelBooking };
+    }
+
+    const flightKeywords = ['book flight', 'flight booking', 'buy flight ticket', 'reserve flight', 'fly to', 'flight reservation'];
+    const isFlight = flightKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isFlight) {
+      return { type: 'flight_booking', result: {} as FlightBooking };
+    }
+
+    const rideKeywords = ['book ride', 'get cab', 'order taxi', 'ride to', 'uber', 'lyft', 'book car'];
+    const isRide = rideKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isRide) {
+      return { type: 'ride_booking', result: {} as RideBooking };
+    }
+
     return null;
   };
 
@@ -243,6 +285,22 @@ export class GeminiService {
     } else if (detectedAction.type === 'fasterbook_menu') {
       const result = await this.fasterBookService.getAvailableItems();
       return { type: 'fasterbook_menu', result };
+    } else if (detectedAction.type === 'restaurant_order') {
+      const params = await this.extractRestaurantParams(message);
+      const result = await mockRestaurantApi.placeOrder(params);
+      return { type: 'restaurant_order', result };
+    } else if (detectedAction.type === 'hotel_booking') {
+      const params = await this.extractHotelParams(message);
+      const result = await mockHotelApi.bookHotel(params);
+      return { type: 'hotel_booking', result };
+    } else if (detectedAction.type === 'flight_booking') {
+      const params = await this.extractFlightParams(message);
+      const result = await mockFlightApi.bookFlight(params);
+      return { type: 'flight_booking', result };
+    } else if (detectedAction.type === 'ride_booking') {
+      const params = await this.extractRideParams(message);
+      const result = await mockRideApi.bookRide(params);
+      return { type: 'ride_booking', result };
     } else if (detectedAction.type === 'image_generation') {
       return detectedAction;
     }
@@ -392,7 +450,125 @@ Return ONLY the JSON object, no explanations.`;
       };
     }
   }
-  
+
+  private async extractRestaurantParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract restaurant order details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "restaurant": "<restaurant_name or 'Delicious Bites'>",
+  "items": [{"name": "<item_name>", "quantity": <number>, "price": <number>}],
+  "address": "<delivery_address>",
+  "totalAmount": <total_price>
+}
+
+Examples:
+- "Order 2 pizzas from Pizza Palace" → {"restaurant":"Pizza Palace","items":[{"name":"Pizza","quantity":2,"price":12.99}],"address":"Default address","totalAmount":25.98}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting restaurant params:', error);
+    }
+
+    return {
+      restaurant: 'Delicious Bites',
+      items: [{ name: 'Margherita Pizza', quantity: 1, price: 12.99 }],
+      address: '123 Main St',
+      totalAmount: 12.99
+    };
+  }
+
+  private async extractHotelParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract hotel booking details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "hotelName": "<hotel_name>",
+  "location": "<city_or_location>",
+  "checkIn": "<date>",
+  "checkOut": "<date>",
+  "rooms": <number>,
+  "guests": <number>,
+  "roomType": "<room_type>"
+}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting hotel params:', error);
+    }
+
+    return {};
+  }
+
+  private async extractFlightParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract flight booking details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "from": "<departure_city>",
+  "to": "<destination_city>",
+  "passengers": <number>,
+  "class": "<Economy/Business/First>"
+}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting flight params:', error);
+    }
+
+    return {};
+  }
+
+  private async extractRideParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract ride booking details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "pickup": "<pickup_location>",
+  "dropoff": "<destination_location>",
+  "vehicleType": "<Sedan/SUV/Premium>"
+}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting ride params:', error);
+    }
+
+    return {};
+  }
+
   generateImage = async (prompt: string): Promise<string> => {
     try {
       return await this.imageService.generateImage(prompt);

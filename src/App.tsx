@@ -14,6 +14,9 @@ import { mockRestaurantApi, mockHotelApi, mockFlightApi, mockRideApi } from './s
 import AuthModal from './components/AuthModal';
 import TaskCenter from './components/TaskCenter';
 import Markdown from './utils/markdown';
+import FilesView from './components/FilesView';
+import MemoryLogs from './components/MemoryLogs';
+import { handleBookingWithTask } from './utils/bookingHelper';
 
 interface Message {
   id: string;
@@ -22,7 +25,7 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
-  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
+  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu' | 'restaurant' | 'hotel' | 'flight' | 'ride';
   orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
 }
 
@@ -71,7 +74,7 @@ function App() {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'chat' | 'tasks'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'tasks' | 'files' | 'memory'>('chat');
   const [isTyping, setIsTyping] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -340,6 +343,122 @@ function App() {
         } finally {
           setIsTyping(false);
         }
+      } else if (aiResponse === 'RESTAURANT_ORDER_REQUEST') {
+        setIsTyping(true);
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+          if (agenticAction) {
+            const result = await handleBookingWithTask(agenticAction, input);
+            if (result) {
+              const orderResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                type: 'assistant',
+                content: result.message,
+                timestamp: new Date(),
+                orderType: result.orderType as any,
+                orderData: result.orderData
+              };
+              setMessages(prev => [...prev, orderResponse]);
+            }
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue processing your restaurant order. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'HOTEL_BOOKING_REQUEST') {
+        setIsTyping(true);
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+          if (agenticAction) {
+            const result = await handleBookingWithTask(agenticAction, input);
+            if (result) {
+              const orderResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                type: 'assistant',
+                content: result.message,
+                timestamp: new Date(),
+                orderType: result.orderType as any,
+                orderData: result.orderData
+              };
+              setMessages(prev => [...prev, orderResponse]);
+            }
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue booking your hotel. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'FLIGHT_BOOKING_REQUEST') {
+        setIsTyping(true);
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+          if (agenticAction) {
+            const result = await handleBookingWithTask(agenticAction, input);
+            if (result) {
+              const orderResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                type: 'assistant',
+                content: result.message,
+                timestamp: new Date(),
+                orderType: result.orderType as any,
+                orderData: result.orderData
+              };
+              setMessages(prev => [...prev, orderResponse]);
+            }
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue booking your flight. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
+      } else if (aiResponse === 'RIDE_BOOKING_REQUEST') {
+        setIsTyping(true);
+        try {
+          const agenticAction = await geminiService.executeAgenticAction(input);
+          if (agenticAction) {
+            const result = await handleBookingWithTask(agenticAction, input);
+            if (result) {
+              const orderResponse: Message = {
+                id: (Date.now() + 1).toString(),
+                type: 'assistant',
+                content: result.message,
+                timestamp: new Date(),
+                orderType: result.orderType as any,
+                orderData: result.orderData
+              };
+              setMessages(prev => [...prev, orderResponse]);
+            }
+          }
+        } catch (error) {
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: 'I apologize, but I encountered an issue booking your ride. Please try again.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
+        } finally {
+          setIsTyping(false);
+        }
       } else if (aiResponse === 'FASTERBOOK_MENU_REQUEST') {
         setIsTyping(true);
 
@@ -466,28 +585,34 @@ function App() {
             <span>Conversations</span>
           </button>
           
-          <button 
+          <button
             onClick={() => setCurrentView('tasks')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'tasks' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
           >
             <Zap className="w-5 h-5" />
             <span>Task Center</span>
           </button>
-          
-          <button 
+
+          <button
             onClick={() => setShowFileUpload(!showFileUpload)}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${showFileUpload ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
           >
             <Upload className="w-5 h-5" />
             <span>Upload Files</span>
           </button>
-          
-          <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sage-600 hover:bg-sage-50 transition-all duration-300">
+
+          <button
+            onClick={() => setCurrentView('memory')}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'memory' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
+          >
             <History className="w-5 h-5" />
             <span>Memory Logs</span>
           </button>
-          
-          <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sage-600 hover:bg-sage-50 transition-all duration-300">
+
+          <button
+            onClick={() => setCurrentView('files')}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'files' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
+          >
             <FileText className="w-5 h-5" />
             <span>Files</span>
           </button>
@@ -702,6 +827,19 @@ function App() {
         {/* Tasks View */}
         {currentView === 'tasks' && (
           <TaskCenter />
+        )}
+
+        {/* Files View */}
+        {currentView === 'files' && (
+          <FilesView
+            files={geminiService.getUploadedFiles()}
+            onRemoveFile={handleRemoveFile}
+          />
+        )}
+
+        {/* Memory Logs View */}
+        {currentView === 'memory' && (
+          <MemoryLogs messages={messages} />
         )}
 
         {/* Old Tasks View (kept for reference) */}

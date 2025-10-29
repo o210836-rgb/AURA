@@ -1,7 +1,8 @@
 import React from 'react';
-import { CheckCircle2, MapPin, Clock, Calendar, Ticket, UtensilsCrossed, Package, Film, List } from 'lucide-react';
+import { CheckCircle2, MapPin, Clock, Calendar, Ticket, UtensilsCrossed, Package, Film, List, Hotel, Plane, Car } from 'lucide-react';
 import { FoodBookingResult } from '../services/foodBooking';
 import { TicketBookingResult } from '../services/ticketBooking';
+import { RestaurantOrder, HotelBooking, FlightBooking, RideBooking } from '../services/mockApis';
 import {
   FoodBookingResponse,
   MovieBookingResponse,
@@ -13,11 +14,240 @@ import {
 } from '../services/fasterbook';
 
 interface OrderDisplayProps {
-  orderType: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
-  orderData: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
+  orderType: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu' | 'restaurant' | 'hotel' | 'flight' | 'ride';
+  orderData: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse | RestaurantOrder | HotelBooking | FlightBooking | RideBooking;
 }
 
 export function OrderDisplay({ orderType, orderData }: OrderDisplayProps) {
+  if (orderType === 'restaurant') {
+    const order = orderData as RestaurantOrder;
+
+    return (
+      <div className="bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-6 border-2 border-orange-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center">
+            <UtensilsCrossed className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-orange-900">Restaurant Order Confirmed</h3>
+            <p className="text-sm text-orange-700">
+              Order ID: {order.orderId}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Package className="w-5 h-5 text-orange-600" />
+            <span className="font-semibold text-orange-900">Restaurant:</span>
+            <span className="text-orange-800">{order.restaurant}</span>
+          </div>
+
+          <div className="bg-white rounded-lg p-3 border border-orange-200">
+            <p className="text-sm font-semibold text-orange-900 mb-2">Order Items:</p>
+            {order.items.map((item, index) => (
+              <div key={index} className="flex justify-between text-sm">
+                <span className="text-orange-800">{item.quantity}x {item.name}</span>
+                <span className="font-semibold text-orange-900">${item.price}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-5 h-5 text-orange-600" />
+            <span className="font-semibold text-orange-900">Delivery Address:</span>
+            <span className="text-orange-800">{order.deliveryAddress}</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Clock className="w-5 h-5 text-orange-600" />
+            <span className="font-semibold text-orange-900">Estimated Delivery:</span>
+            <span className="text-orange-800">{order.estimatedDelivery}</span>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2 border-t border-orange-200">
+            <span className="font-bold text-orange-900">Total Amount:</span>
+            <span className="text-xl font-bold text-orange-600">${order.totalAmount}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (orderType === 'hotel') {
+    const booking = orderData as HotelBooking;
+
+    return (
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-blue-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+            <Hotel className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-blue-900">Hotel Booking Confirmed</h3>
+            <p className="text-sm text-blue-700">
+              Booking ID: {booking.bookingId}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Hotel className="w-5 h-5 text-blue-600" />
+            <span className="font-semibold text-blue-900">Hotel:</span>
+            <span className="text-blue-800">{booking.hotelName}</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <MapPin className="w-5 h-5 text-blue-600" />
+            <span className="font-semibold text-blue-900">Location:</span>
+            <span className="text-blue-800">{booking.location}</span>
+          </div>
+
+          <div className="bg-white rounded-lg p-3 border border-blue-200 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-blue-800">Check-in:</span>
+              <span className="font-semibold text-blue-900">{booking.checkIn}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-blue-800">Check-out:</span>
+              <span className="font-semibold text-blue-900">{booking.checkOut}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-blue-800">Room Type:</span>
+              <span className="font-semibold text-blue-900">{booking.roomType}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-blue-800">Guests:</span>
+              <span className="font-semibold text-blue-900">{booking.guests}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2 border-t border-blue-200">
+            <span className="font-bold text-blue-900">Total Amount:</span>
+            <span className="text-xl font-bold text-blue-600">${booking.totalAmount}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (orderType === 'flight') {
+    const booking = orderData as FlightBooking;
+
+    return (
+      <div className="bg-gradient-to-br from-sky-50 to-blue-50 rounded-2xl p-6 border-2 border-sky-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-sky-500 rounded-full flex items-center justify-center">
+            <Plane className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-sky-900">Flight Booking Confirmed</h3>
+            <p className="text-sm text-sky-700">
+              Booking ID: {booking.bookingId}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Plane className="w-5 h-5 text-sky-600" />
+            <span className="font-semibold text-sky-900">Flight:</span>
+            <span className="text-sky-800">{booking.airline} {booking.flightNumber}</span>
+          </div>
+
+          <div className="bg-white rounded-lg p-3 border border-sky-200 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">From:</span>
+              <span className="font-semibold text-sky-900">{booking.from}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">To:</span>
+              <span className="font-semibold text-sky-900">{booking.to}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">Departure:</span>
+              <span className="font-semibold text-sky-900">{booking.departureTime}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">Arrival:</span>
+              <span className="font-semibold text-sky-900">{booking.arrivalTime}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">Class:</span>
+              <span className="font-semibold text-sky-900">{booking.class}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-sky-800">Passengers:</span>
+              <span className="font-semibold text-sky-900">{booking.passengers}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2 border-t border-sky-200">
+            <span className="font-bold text-sky-900">Total Amount:</span>
+            <span className="text-xl font-bold text-sky-600">${booking.totalAmount}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (orderType === 'ride') {
+    const booking = orderData as RideBooking;
+
+    return (
+      <div className="bg-gradient-to-br from-emerald-50 to-green-50 rounded-2xl p-6 border-2 border-emerald-200 shadow-lg animate-slideIn">
+        <div className="flex items-center space-x-3 mb-4">
+          <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center">
+            <Car className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h3 className="font-bold text-lg text-emerald-900">Ride Booking Confirmed</h3>
+            <p className="text-sm text-emerald-700">
+              Ride ID: {booking.rideId}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Car className="w-5 h-5 text-emerald-600" />
+            <span className="font-semibold text-emerald-900">Driver:</span>
+            <span className="text-emerald-800">{booking.driverName}</span>
+          </div>
+
+          <div className="bg-white rounded-lg p-3 border border-emerald-200 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-800">Vehicle:</span>
+              <span className="font-semibold text-emerald-900">{booking.vehicleType}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-800">Plate:</span>
+              <span className="font-semibold text-emerald-900">{booking.vehicleNumber}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-800">Pickup:</span>
+              <span className="font-semibold text-emerald-900">{booking.pickup}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-800">Dropoff:</span>
+              <span className="font-semibold text-emerald-900">{booking.dropoff}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-emerald-800">Estimated Arrival:</span>
+              <span className="font-semibold text-emerald-900">{booking.estimatedArrival}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 pt-2 border-t border-emerald-200">
+            <span className="font-bold text-emerald-900">Fare:</span>
+            <span className="text-xl font-bold text-emerald-600">${booking.fare}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (orderType === 'fasterbook_menu') {
     const menuData = orderData as AvailableItemsResponse;
 
