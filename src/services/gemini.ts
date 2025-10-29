@@ -191,6 +191,7 @@ export class GeminiService {
   'order',   // Catch all orders
   'book',    // Catch all bookings
   'biryani'  // Catch this specific, common food request];
+                          ]
     const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
 
     if (isFoodRequest) {
