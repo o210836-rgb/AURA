@@ -187,7 +187,10 @@ export class GeminiService {
       return { type: 'image_generation', prompt: imagePrompt };
     }
 
-    const foodKeywords = ['order food', 'book food', 'get food', 'food delivery', 'order pizza', 'order burger', 'hungry', 'food order'];
+    const foodKeywords = ['order food', 'book food', 'get food', 'food delivery', 'order pizza', 'order burger', 'hungry', 'food order',// New, more general keywords for better coverage
+  'order',   // Catch all orders
+  'book',    // Catch all bookings
+  'biryani'  // Catch this specific, common food request];
     const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
 
     if (isFoodRequest) {
