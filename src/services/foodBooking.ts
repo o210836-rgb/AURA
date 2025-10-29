@@ -79,25 +79,48 @@ function generateUserSession(): string {
   return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
-export async function bookFood(userRequest: string): Promise<FoodBookingResult> {
+export async function bookFood(userRequest: string, extractedParams?: any): Promise<FoodBookingResult> {
   await new Promise(resolve => setTimeout(resolve, 1500));
 
-  const restaurant = RESTAURANTS[Math.floor(Math.random() * RESTAURANTS.length)];
+  let restaurant = extractedParams?.restaurant;
+  if (!restaurant || !SAMPLE_MENU_ITEMS[restaurant as keyof typeof SAMPLE_MENU_ITEMS]) {
+    restaurant = RESTAURANTS[Math.floor(Math.random() * RESTAURANTS.length)];
+  }
+
   const menuItems = SAMPLE_MENU_ITEMS[restaurant as keyof typeof SAMPLE_MENU_ITEMS];
 
-  const numItems = Math.floor(Math.random() * 2) + 1;
-  const items = [];
+  let items = [];
   let totalAmount = 0;
 
-  for (let i = 0; i < numItems; i++) {
-    const menuItem = menuItems[Math.floor(Math.random() * menuItems.length)];
-    const quantity = Math.floor(Math.random() * 2) + 1;
-    items.push({
-      name: menuItem.name,
-      quantity,
-      price: menuItem.price
-    });
-    totalAmount += menuItem.price * quantity;
+  if (extractedParams?.items && extractedParams.items.length > 0) {
+    for (const extractedItem of extractedParams.items) {
+      const matchingMenuItem = menuItems.find(item =>
+        item.name.toLowerCase().includes(extractedItem.name.toLowerCase()) ||
+        extractedItem.name.toLowerCase().includes(item.name.toLowerCase())
+      );
+
+      const menuItem = matchingMenuItem || menuItems[Math.floor(Math.random() * menuItems.length)];
+      const quantity = extractedItem.quantity || 1;
+
+      items.push({
+        name: menuItem.name,
+        quantity,
+        price: menuItem.price
+      });
+      totalAmount += menuItem.price * quantity;
+    }
+  } else {
+    const numItems = Math.floor(Math.random() * 2) + 1;
+    for (let i = 0; i < numItems; i++) {
+      const menuItem = menuItems[Math.floor(Math.random() * menuItems.length)];
+      const quantity = Math.floor(Math.random() * 2) + 1;
+      items.push({
+        name: menuItem.name,
+        quantity,
+        price: menuItem.price
+      });
+      totalAmount += menuItem.price * quantity;
+    }
   }
 
   const deliveryMinutes = Math.floor(Math.random() * 20) + 30;
@@ -109,7 +132,7 @@ export async function bookFood(userRequest: string): Promise<FoodBookingResult> 
   const orderDetails: FoodOrderDetails = {
     restaurant,
     items,
-    deliveryAddress: 'User provided address',
+    deliveryAddress: extractedParams?.deliveryAddress || 'User provided address',
     specialInstructions: userRequest
   };
 

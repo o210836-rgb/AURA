@@ -83,14 +83,32 @@ function calculateTicketPrice(ticketType: string): number {
   return prices[ticketType as keyof typeof prices] || 79.99;
 }
 
-export async function bookTicket(userRequest: string): Promise<TicketBookingResult> {
+export async function bookTicket(userRequest: string, extractedParams?: any): Promise<TicketBookingResult> {
   await new Promise(resolve => setTimeout(resolve, 1500));
 
-  const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
-  const ticketType = TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)];
+  let event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+
+  if (extractedParams?.event) {
+    const matchingEvent = EVENTS.find(e =>
+      e.name.toLowerCase().includes(extractedParams.event.toLowerCase()) ||
+      extractedParams.event.toLowerCase().includes(e.name.toLowerCase())
+    );
+    if (matchingEvent) {
+      event = matchingEvent;
+    }
+  } else if (extractedParams?.eventType) {
+    const matchingEvent = EVENTS.find(e =>
+      e.type.toLowerCase() === extractedParams.eventType.toLowerCase()
+    );
+    if (matchingEvent) {
+      event = matchingEvent;
+    }
+  }
+
+  const ticketType = extractedParams?.ticketType || TICKET_TYPES[Math.floor(Math.random() * TICKET_TYPES.length)];
   const { date, time } = generateFutureDate();
 
-  const numTickets = Math.floor(Math.random() * 3) + 1;
+  const numTickets = extractedParams?.numTickets || Math.floor(Math.random() * 3) + 1;
   const seats = [];
   const section = SECTIONS[Math.floor(Math.random() * SECTIONS.length)];
   const baseRow = Math.floor(Math.random() * 20) + 1;

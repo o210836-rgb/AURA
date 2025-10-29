@@ -8,10 +8,10 @@ import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
 import { FoodBookingResult } from './services/foodBooking';
 import { TicketBookingResult } from './services/ticketBooking';
 import { FoodBookingResponse, MovieBookingResponse, BookingsResponse, AvailableItemsResponse } from './services/fasterbook';
-import { authService, AuthUser } from './services/auth';
+import { useUser, useClerk, SignInButton, UserButton } from '@clerk/clerk-react';
+import { clerkAuthService, ClerkUser } from './services/clerkAuth';
 import { tasksService, TaskType } from './services/tasks';
 import { mockRestaurantApi, mockHotelApi, mockFlightApi, mockRideApi } from './services/mockApis';
-import AuthModal from './components/AuthModal';
 import TaskCenter from './components/TaskCenter';
 import Markdown from './utils/markdown';
 import FilesView from './components/FilesView';
@@ -80,8 +80,9 @@ function App() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const { user, isLoaded } = useUser();
+  const { signOut } = useClerk();
+  const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
 
   // Initialize Gemini service
   const [geminiService] = useState(() => new GeminiService());
@@ -100,19 +101,15 @@ function App() {
     setParticles(newParticles);
 
     const loadUser = async () => {
-      const user = await authService.getCurrentUser();
-      setCurrentUser(user);
+      if (isLoaded && user) {
+        const clerkUser = await clerkAuthService.getCurrentUser(user);
+        setCurrentUser(clerkUser);
+      } else {
+        setCurrentUser(null);
+      }
     };
     loadUser();
-
-    const { data: authListener } = authService.onAuthStateChange((user) => {
-      setCurrentUser(user);
-    });
-
-    return () => {
-      authListener?.subscription.unsubscribe();
-    };
-  }, []);
+  }, [user, isLoaded]);
 
   const handleFileUploaded = (file: ExtractedFile) => {
     geminiService.addUploadedFile(file);
@@ -653,32 +650,32 @@ function App() {
             </div>
 
             <div className="flex items-center space-x-3">
-              {currentUser ? (
+              {isLoaded && user ? (
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2 px-4 py-2 bg-sage-100/50 rounded-full">
                     <User className="w-4 h-4 text-sage-700" />
-                    <span className="text-sm text-sage-700">{currentUser.full_name || currentUser.email}</span>
+                    <span className="text-sm text-sage-700">{currentUser?.full_name || currentUser?.email}</span>
                   </div>
-                  <button
-                    onClick={async () => {
-                      await authService.signOut();
-                      setCurrentUser(null);
-                    }}
-                    className="p-2 rounded-lg bg-sage-100/50 hover:bg-sage-200/50 transition-colors duration-200"
-                    title="Sign Out"
-                  >
-                    <LogOut className="w-5 h-5 text-sage-600" />
-                  </button>
+                  <div className="clerk-user-button-wrapper">
+                    <UserButton
+                      appearance={{
+                        elements: {
+                          avatarBox: 'w-10 h-10',
+                          userButtonPopoverCard: 'bg-white shadow-2xl border border-sage-200',
+                          userButtonPopoverActionButton: 'hover:bg-sage-50',
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all"
-                >
-                  <LogIn className="w-4 h-4" />
-                  <span className="text-sm font-medium">Sign In</span>
-                </button>
-              )}
+              ) : isLoaded ? (
+                <SignInButton mode="modal">
+                  <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl">
+                    <LogIn className="w-4 h-4" />
+                    <span className="text-sm font-medium">Sign In</span>
+                  </button>
+                </SignInButton>
+              ) : null}
             </div>
           </div>
         </header>
@@ -897,13 +894,6 @@ function App() {
         />
       )}
 
-      <AuthModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onSuccess={() => {
-          setShowAuthModal(false);
-        }}
-      />
     </div>
   );
 }

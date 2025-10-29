@@ -266,10 +266,12 @@ export class GeminiService {
     if (!detectedAction) return null;
 
     if (detectedAction.type === 'food_booking') {
-      const result = await bookFood(message);
+      const params = await this.extractGenericFoodParams(message);
+      const result = await bookFood(message, params);
       return { type: 'food_booking', result };
     } else if (detectedAction.type === 'ticket_booking') {
-      const result = await bookTicket(message);
+      const params = await this.extractGenericTicketParams(message);
+      const result = await bookTicket(message, params);
       return { type: 'ticket_booking', result };
     } else if (detectedAction.type === 'fasterbook_food') {
       const params = await this.extractFoodParams(message);
@@ -567,6 +569,69 @@ Return ONLY the JSON object, no explanations.`;
     }
 
     return {};
+  }
+
+  private async extractGenericFoodParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract food order details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "restaurant": "<restaurant_name or null if not specified>",
+  "items": [{"name": "<item_name>", "quantity": <number>, "price": <estimated_price>}],
+  "deliveryAddress": "<address or null if not specified>"
+}
+
+Examples:
+- "Order 2 pizzas from Pizza Palace" → {"restaurant":"Pizza Palace","items":[{"name":"Pizza","quantity":2,"price":12.99}],"deliveryAddress":null}
+- "Get me biryani to 123 Main St" → {"restaurant":null,"items":[{"name":"Biryani","quantity":1,"price":10.99}],"deliveryAddress":"123 Main St"}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting generic food params:', error);
+    }
+
+    return null;
+  }
+
+  private async extractGenericTicketParams(message: string): Promise<any> {
+    const extractionPrompt = `Extract ticket booking details from this message: "${message}"
+
+Return ONLY a valid JSON object with these fields:
+{
+  "event": "<event_name or null if not specified>",
+  "eventType": "<Concert/Comedy/Theater/Sports/Music/Conference or null>",
+  "numTickets": <number or null>,
+  "ticketType": "<VIP/Premium/Standard/Economy or null>",
+  "date": "<preferred_date or null>"
+}
+
+Examples:
+- "Book tickets for a rock concert" → {"event":null,"eventType":"Concert","numTickets":null,"ticketType":null,"date":null}
+- "Get me 2 VIP tickets for Broadway show" → {"event":null,"eventType":"Theater","numTickets":2,"ticketType":"VIP","date":null}
+- "Book 3 tickets for Electric Nights next week" → {"event":"Electric Nights","eventType":null,"numTickets":3,"ticketType":null,"date":"next week"}
+
+Return ONLY the JSON object, no explanations.`;
+
+    try {
+      const result = await this.model.generateContent(extractionPrompt);
+      const responseText = await result.response.text();
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+    } catch (error) {
+      console.error('Error extracting generic ticket params:', error);
+    }
+
+    return null;
   }
 
   generateImage = async (prompt: string): Promise<string> => {
