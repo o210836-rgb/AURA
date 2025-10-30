@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, LogOut, User } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, LogOut, User, Network } from 'lucide-react';
 import { GeminiService } from './services/gemini';
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -17,6 +17,8 @@ import Markdown from './utils/markdown';
 import FilesView from './components/FilesView';
 import MemoryLogs from './components/MemoryLogs';
 import { handleBookingWithTask } from './utils/bookingHelper';
+import LandingPage from './components/LandingPage';
+import ExternalServices from './components/ExternalServices';
 
 interface Message {
   id: string;
@@ -74,15 +76,30 @@ function App() {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'chat' | 'tasks' | 'files' | 'memory'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'tasks' | 'files' | 'memory' | 'services'>('chat');
   const [isTyping, setIsTyping] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const { user, isLoaded } = useUser();
+  const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-green-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading A.U.R.A...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <LandingPage />;
+  }
 
   // Initialize Gemini service
   const [geminiService] = useState(() => new GeminiService());
@@ -388,10 +405,14 @@ function App() {
             }
           }
         } catch (error) {
+          const errorMessage = error instanceof Error && error.message.startsWith('MISSING_DETAILS:')
+            ? error.message.replace('MISSING_DETAILS: ', '')
+            : 'I apologize, but I encountered an issue booking your hotel. Please try again.';
+
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: 'I apologize, but I encountered an issue booking your hotel. Please try again.',
+            content: errorMessage,
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);
@@ -417,10 +438,14 @@ function App() {
             }
           }
         } catch (error) {
+          const errorMessage = error instanceof Error && error.message.startsWith('MISSING_DETAILS:')
+            ? error.message.replace('MISSING_DETAILS: ', '')
+            : 'I apologize, but I encountered an issue booking your flight. Please try again.';
+
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: 'I apologize, but I encountered an issue booking your flight. Please try again.',
+            content: errorMessage,
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);
@@ -446,10 +471,14 @@ function App() {
             }
           }
         } catch (error) {
+          const errorMessage = error instanceof Error && error.message.startsWith('MISSING_DETAILS:')
+            ? error.message.replace('MISSING_DETAILS: ', '')
+            : 'I apologize, but I encountered an issue booking your ride. Please try again.';
+
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: 'I apologize, but I encountered an issue booking your ride. Please try again.',
+            content: errorMessage,
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);
@@ -613,7 +642,15 @@ function App() {
             <FileText className="w-5 h-5" />
             <span>Files</span>
           </button>
-          
+
+          <button
+            onClick={() => setCurrentView('services')}
+            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'services' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
+          >
+            <Network className="w-5 h-5" />
+            <span>External Services</span>
+          </button>
+
           <button className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-sage-600 hover:bg-sage-50 transition-all duration-300">
             <Settings className="w-5 h-5" />
             <span>Settings</span>
@@ -763,24 +800,24 @@ function App() {
                 </div>
               )}
               
-              <div className="flex items-end space-x-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
                 <div className="flex-1 relative">
-                  <input
-                    type="text"
+                  <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                     placeholder="Chat with A.U.R.A, book food/movies via FasterBook, upload documents, or generate images..."
-                    className="w-full px-6 py-4 bg-white/60 backdrop-blur-sm border border-sage-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500"
+                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm border border-sage-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32"
+                    rows={1}
                   />
-                  
+
                   {geminiService.getUploadedFiles().length > 0 && (
                     <div className="absolute -top-8 left-2 text-xs text-sage-600 bg-sage-100/80 px-2 py-1 rounded-md">
                       📎 {geminiService.getUploadedFiles().length} file(s) attached
                     </div>
                   )}
                 </div>
-                
+
                 <input
                   type="file"
                   accept="*"
@@ -789,33 +826,36 @@ function App() {
                   id="quick-file-upload"
                   disabled={isUploadingFile}
                 />
-                <button
-                  onClick={() => document.getElementById('quick-file-upload')?.click()}
-                  disabled={isUploadingFile}
-                  className="p-4 rounded-xl bg-sage-100 text-sage-600 hover:bg-sage-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                  title="Upload file"
-                >
-                  {isUploadingFile ? <div className="w-5 h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-5 h-5" />}
-                </button>
-                
-                <button
-                  onClick={toggleVoice}
-                  className={`p-4 rounded-xl transition-all duration-300 ${isListening 
-                    ? 'bg-red-100 text-red-600 hover:bg-red-200' 
-                    : 'bg-sage-100 text-sage-600 hover:bg-sage-200'
-                  }`}
-                >
-                  {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                  {isListening && <Waves className="w-4 h-4 absolute animate-ping" />}
-                </button>
-                
-                <button
-                  onClick={handleSendMessage}
-                  disabled={!input.trim() || isTyping || isGeneratingImage}
-                  className="px-6 py-4 bg-gradient-to-r from-sage-500 to-sage-600 text-white rounded-xl hover:from-sage-600 hover:to-sage-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md"
-                >
-                  Send
-                </button>
+
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <button
+                    onClick={() => document.getElementById('quick-file-upload')?.click()}
+                    disabled={isUploadingFile}
+                    className="p-3 sm:p-4 rounded-xl bg-sage-100 text-sage-600 hover:bg-sage-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
+                    title="Upload file"
+                  >
+                    {isUploadingFile ? <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />}
+                  </button>
+
+                  <button
+                    onClick={toggleVoice}
+                    className={`p-3 sm:p-4 rounded-xl transition-all duration-300 ${isListening
+                      ? 'bg-red-100 text-red-600 hover:bg-red-200'
+                      : 'bg-sage-100 text-sage-600 hover:bg-sage-200'
+                    }`}
+                  >
+                    {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
+                    {isListening && <Waves className="w-3 h-3 sm:w-4 sm:h-4 absolute animate-ping" />}
+                  </button>
+
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={!input.trim() || isTyping || isGeneratingImage}
+                    className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-sage-500 to-sage-600 text-white rounded-xl hover:from-sage-600 hover:to-sage-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md text-sm sm:text-base font-medium"
+                  >
+                    Send
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -837,6 +877,11 @@ function App() {
         {/* Memory Logs View */}
         {currentView === 'memory' && (
           <MemoryLogs messages={messages} />
+        )}
+
+        {/* External Services View */}
+        {currentView === 'services' && (
+          <ExternalServices />
         )}
 
         {/* Old Tasks View (kept for reference) */}

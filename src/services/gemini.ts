@@ -497,13 +497,13 @@ Return ONLY the JSON object, no explanations.`;
 
 Return ONLY a valid JSON object with these fields:
 {
-  "hotelName": "<hotel_name>",
-  "location": "<city_or_location>",
-  "checkIn": "<date>",
-  "checkOut": "<date>",
-  "rooms": <number>,
-  "guests": <number>,
-  "roomType": "<room_type>"
+  "hotelName": "<hotel_name or null>",
+  "location": "<city_or_location or null>",
+  "checkIn": "<date or null>",
+  "checkOut": "<date or null>",
+  "rooms": <number or null>,
+  "guests": <number or null>,
+  "roomType": "<room_type or null>"
 }
 
 Return ONLY the JSON object, no explanations.`;
@@ -513,13 +513,27 @@ Return ONLY the JSON object, no explanations.`;
       const responseText = await result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const params = JSON.parse(jsonMatch[0]);
+
+        const missingFields = [];
+        if (!params.location) missingFields.push('**location** (city or area)');
+        if (!params.checkIn) missingFields.push('**check-in date**');
+        if (!params.checkOut) missingFields.push('**check-out date**');
+
+        if (missingFields.length > 0) {
+          throw new Error(`MISSING_DETAILS: I need the ${missingFields.join(', ')} to book your hotel. Could you provide these details?`);
+        }
+
+        return params;
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('MISSING_DETAILS:')) {
+        throw error;
+      }
       console.error('Error extracting hotel params:', error);
     }
 
-    return {};
+    throw new Error('MISSING_DETAILS: I need the **location**, **check-in date**, and **check-out date** to book your hotel. Could you provide these details?');
   }
 
   private async extractFlightParams(message: string): Promise<any> {
@@ -527,10 +541,10 @@ Return ONLY the JSON object, no explanations.`;
 
 Return ONLY a valid JSON object with these fields:
 {
-  "from": "<departure_city>",
-  "to": "<destination_city>",
-  "passengers": <number>,
-  "class": "<Economy/Business/First>"
+  "from": "<departure_city or null>",
+  "to": "<destination_city or null>",
+  "passengers": <number or null>,
+  "class": "<Economy/Business/First or null>"
 }
 
 Return ONLY the JSON object, no explanations.`;
@@ -540,13 +554,26 @@ Return ONLY the JSON object, no explanations.`;
       const responseText = await result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const params = JSON.parse(jsonMatch[0]);
+
+        const missingFields = [];
+        if (!params.from) missingFields.push('**departure city**');
+        if (!params.to) missingFields.push('**destination city**');
+
+        if (missingFields.length > 0) {
+          throw new Error(`MISSING_DETAILS: I need the ${missingFields.join(' and ')} to book your flight. Where are you flying from and to?`);
+        }
+
+        return params;
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('MISSING_DETAILS:')) {
+        throw error;
+      }
       console.error('Error extracting flight params:', error);
     }
 
-    return {};
+    throw new Error('MISSING_DETAILS: I need the **departure city** and **destination city** to book your flight. Where are you flying from and to?');
   }
 
   private async extractRideParams(message: string): Promise<any> {
@@ -554,9 +581,9 @@ Return ONLY the JSON object, no explanations.`;
 
 Return ONLY a valid JSON object with these fields:
 {
-  "pickup": "<pickup_location>",
-  "dropoff": "<destination_location>",
-  "vehicleType": "<Sedan/SUV/Premium>"
+  "pickup": "<pickup_location or null>",
+  "dropoff": "<destination_location or null>",
+  "vehicleType": "<Sedan/SUV/Premium or null>"
 }
 
 Return ONLY the JSON object, no explanations.`;
@@ -566,13 +593,26 @@ Return ONLY the JSON object, no explanations.`;
       const responseText = await result.response.text();
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        return JSON.parse(jsonMatch[0]);
+        const params = JSON.parse(jsonMatch[0]);
+
+        const missingFields = [];
+        if (!params.pickup) missingFields.push('**pickup location**');
+        if (!params.dropoff) missingFields.push('**dropoff location**');
+
+        if (missingFields.length > 0) {
+          throw new Error(`MISSING_DETAILS: I need both the ${missingFields.join(' and ')} for your ride. Where should I pick you up and where are you going?`);
+        }
+
+        return params;
       }
     } catch (error) {
+      if (error instanceof Error && error.message.startsWith('MISSING_DETAILS:')) {
+        throw error;
+      }
       console.error('Error extracting ride params:', error);
     }
 
-    return {};
+    throw new Error('MISSING_DETAILS: I need both the **pickup location** and **dropoff location** for your ride. Where should I pick you up and where are you going?');
   }
 
   private async extractGenericFoodParams(message: string): Promise<any> {
