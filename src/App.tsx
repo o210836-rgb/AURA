@@ -17,6 +17,7 @@ import Markdown from './utils/markdown';
 import FilesView from './components/FilesView';
 import MemoryLogs from './components/MemoryLogs';
 import { handleBookingWithTask } from './utils/bookingHelper';
+import LandingPage from './components/LandingPage';
 
 interface Message {
   id: string;
@@ -538,6 +539,21 @@ function App() {
       default: return 'bg-slate-50 border-slate-200';
     }
   };
+
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-white text-lg">Loading AURA...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LandingPage />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sage-50 via-white to-beige-50 relative overflow-hidden">
