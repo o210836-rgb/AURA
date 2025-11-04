@@ -25,32 +25,6 @@
     }
   }
 
-  @keyframes float {
-    0%, 100% {
-      transform: translateY(0px) translateX(0px);
-    }
-    25% {
-      transform: translateY(-10px) translateX(5px);
-    }
-    50% {
-      transform: translateY(-20px) translateX(-5px);
-    }
-    75% {
-      transform: translateY(-10px) translateX(5px);
-    }
-  }
-
-  @keyframes pulse-glow {
-    0%, 100% {
-      opacity: 0.2;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.4;
-      transform: scale(1.1);
-    }
-  }
-
   .animate-fade-in {
     animation: fade-in 0.3s ease-out;
   }
@@ -59,34 +33,30 @@
     animation: slide-in 0.3s ease-out;
   }
 
-  .animate-float {
-    animation: float 8s ease-in-out infinite;
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
   }
 
-  .animate-pulse-glow {
-    animation: pulse-glow 4s ease-in-out infinite;
-  }
-}
-
-@layer base {
-  * {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  .animate-blob {
+    animation: blob 7s infinite;
   }
 
-  body {
-    font-feature-settings: 'kern' 1, 'liga' 1;
+  .animation-delay-2000 {
+    animation-delay: 2s;
   }
-}
 
-.backdrop-blur-3xl {
-  backdrop-filter: blur(64px);
-}
-
-.backdrop-blur-2xl {
-  backdrop-filter: blur(40px);
-}
-
-.backdrop-blur-xl {
-  backdrop-filter: blur(24px);
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
 }
