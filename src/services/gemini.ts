@@ -1,11 +1,11 @@
-
-const SYSTEM_PROMPT = `You are A.U.R.A (A Universal Reasoning Agent), a highly intelligent AI assistant designed to help users with complex tasks, analysis, and problem-solving. You have access to uploaded documents and can provide contextual responses based on their content.
-important NOTE:-you were devoloped by the group of undergrad cse  students thier names are Golla Santhosh Kumar
-Vallepu Vijaya Lakshmi
-Nuthangi Chaitanya Karthik
-Karnam  Hemanth Kumar
-Shaik Veligandla Yasmin
+const SYSTEM_PROMPT = `You are A.U.R.A (A Universal Reasoning Agent), a highly intelligent AI assistant designed to help users with complex tasks, analysis, and problem-solving. You have access to uploaded documents and can provide contextual responses based on their content. 
+NOTE:-you were devoloped by the group of undergrad cse  students thier names are Golla Santhosh Kumar	
 Shaik Parveen
+Nuthangi Chaitanya Karthik	
+Vallepu Vijaya Lakshmi
+Karnam  Hemanth Kumar	
+Shaik Veligandla Yasmin	
+
 Key capabilities:
 - Analyze and summarize documents
 - Answer questions based on uploaded content
@@ -14,32 +14,8 @@ Key capabilities:
 - Maintain context across conversations
 
 Always be helpful, accurate, and provide detailed responses when analyzing uploaded documents.
-
+	
 `;
-
-const FASTERBOOK_AGENT_PROMPT = `You are a dedicated FasterBook booking agent. Your ONLY job is to process food orders and movie ticket bookings using the FasterBook API.
-
-STRICT RULES:
-1. You MUST ONLY use the FasterBook API for all booking requests
-2. You are NOT a general AI assistant - you are a booking agent
-3. NEVER give generic LLM responses like "I am only an AI"
-4. If a request is incomplete, ask for the SPECIFIC missing parameters needed for the API
-5. ALWAYS verify items exist in the FasterBook menu before processing orders
-
-For food orders, you need:
-- itemId (from FasterBook menu)
-- quantity
-- delivery address
-
-For movie bookings, you need:
-- movieId (from FasterBook menu)
-- seat numbers
-- showtime
-
-If the user's request is missing any of these, respond professionally asking for the missing information. Example:
-"I'd be happy to book that for you. I need to know: [missing parameters]. What would you prefer?"
-
-NEVER process requests outside of FasterBook bookings when in agent mode.`;
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ExtractedFile, chunkText, getRelevantChunks } from '../utils/fileExtractor';
@@ -81,16 +57,13 @@ export class GeminiService {
   private fileChunks: Map<string, string[]> = new Map();
   private imageService: ImageGenerationService;
   private fasterBookService: FasterBookService;
-  private fasterbookAgentMode: boolean = false;
-  private agentModel;
-  private agentChat;
 
   constructor() {
-    this.model = genAI.getGenerativeModel({
+    this.model = genAI.getGenerativeModel({ 
       model: "gemini-2.5-pro",
       systemInstruction: SYSTEM_PROMPT
     });
-
+    
     this.chat = this.model.startChat({
       history: this.history,
       generationConfig: {
@@ -99,30 +72,8 @@ export class GeminiService {
       },
     });
 
-    // Initialize agent mode model
-    this.agentModel = genAI.getGenerativeModel({
-      model: "gemini-2.5-pro",
-      systemInstruction: FASTERBOOK_AGENT_PROMPT
-    });
-
-    this.agentChat = this.agentModel.startChat({
-      history: [],
-      generationConfig: {
-        maxOutputTokens: 1024,
-        temperature: 0.3,
-      },
-    });
-
     this.imageService = new ImageGenerationService();
     this.fasterBookService = new FasterBookService();
-  }
-
-  setFasterbookAgentMode(enabled: boolean) {
-    this.fasterbookAgentMode = enabled;
-  }
-
-  getFasterbookAgentMode(): boolean {
-    return this.fasterbookAgentMode;
   }
 
   addUploadedFile(file: ExtractedFile) {
@@ -163,13 +114,62 @@ export class GeminiService {
       : '';
   }
 
-  sendMessage = async (message: string): Promise<string> => {
+  // --- NEW LOGIC: DEDICATED FASTERBOOK MODE DETECTION ---
+  private detectFasterBookActionType = (message: string): string | null => {
+    const lowerMessage = message.toLowerCase();
+
+    const foodKeywords = ['order', 'food', 'biryani', 'pizza', 'burger', 'delivery', 'get me', 'i want', 'eat'];
+    const movieKeywords = ['movie', 'tickets', 'cinema', 'showtime', 'seats', 'film'];
+    const bookingsKeywords = ['show bookings', 'my orders', 'view bookings', 'list bookings', 'history', 'my reservations'];
+    const menuKeywords = ['show menu', 'view menu', 'available items', 'menu', 'what you have', 'list of items'];
+
+    if (menuKeywords.some(keyword => lowerMessage.includes(keyword))) {
+        return 'fasterbook_menu';
+    }
+
+    if (bookingsKeywords.some(keyword => lowerMessage.includes(keyword))) {
+        return 'fasterbook_bookings';
+    }
+
+    if (movieKeywords.some(keyword => lowerMessage.includes(keyword))) {
+        return 'fasterbook_movie';
+    }
+    
+    // Catch general food requests last
+    if (foodKeywords.some(keyword => lowerMessage.includes(keyword))) {
+        return 'fasterbook_food';
+    }
+    
+    return null;
+  }
+  
+  sendMessage = async (message: string, isFasterBookMode: boolean = false): Promise<string> => {
     try {
-      // If FasterBook Agent Mode is ON, use strict agent pipeline
-      if (this.fasterbookAgentMode) {
-        return await this.processFasterbookAgentRequest(message);
+      // 1. Prioritized Logic for FasterBook Mode (STRICTLY AGENTIC)
+      if (isFasterBookMode) {
+        const actionType = this.detectFasterBookActionType(message);
+        
+        if (actionType) {
+            if (actionType === 'fasterbook_food') return 'FASTERBOOK_FOOD_REQUEST';
+            if (actionType === 'fasterbook_movie') return 'FASTERBOOK_MOVIE_REQUEST';
+            if (actionType === 'fasterbook_bookings') return 'FASTERBOOK_BOOKINGS_REQUEST';
+            if (actionType === 'fasterbook_menu') return 'FASTERBOOK_MENU_REQUEST';
+        }
+        
+        // Fallback LLM prompt for clarification when mode is ON (Forces Agent Response)
+        const clarificationPrompt = `The user has enabled FasterBook Agent Mode. Their request is: "${message}". You must respond as a dedicated booking agent and strictly use the FasterBook API as your source. 
+        - If the request is for food or a movie, ask for the required missing details (e.g., item, quantity, address, or seats, time, movie).
+        - If the request is for the menu or bookings history, confirm and state you are retrieving the data.
+        - If the request is unclear or non-booking related, guide the user on how to format their FasterBook order (e.g., "Order 2 Chicken Biryani to Room 12").`;
+
+        this.history.push({ role: 'user', parts: [{ text: clarificationPrompt }] });
+        const result = await this.chat.sendMessage(clarificationPrompt);
+        const responseText = await result.response.text();
+        this.history.push({ role: 'model', parts: [{ text: responseText }] });
+        return responseText;
       }
 
+      // 2. Normal Agentic Flow (Runs if isFasterBookMode is FALSE)
       const detectedAction = this.detectAgenticAction(message);
 
       if (detectedAction) {
@@ -179,14 +179,6 @@ export class GeminiService {
           return 'FOOD_BOOKING_REQUEST';
         } else if (detectedAction.type === 'ticket_booking') {
           return 'TICKET_BOOKING_REQUEST';
-        } else if (detectedAction.type === 'fasterbook_food') {
-          return 'FASTERBOOK_FOOD_REQUEST';
-        } else if (detectedAction.type === 'fasterbook_movie') {
-          return 'FASTERBOOK_MOVIE_REQUEST';
-        } else if (detectedAction.type === 'fasterbook_bookings') {
-          return 'FASTERBOOK_BOOKINGS_REQUEST';
-        } else if (detectedAction.type === 'fasterbook_menu') {
-          return 'FASTERBOOK_MENU_REQUEST';
         } else if (detectedAction.type === 'restaurant_order') {
           return 'RESTAURANT_ORDER_REQUEST';
         } else if (detectedAction.type === 'hotel_booking') {
@@ -241,51 +233,25 @@ export class GeminiService {
       return { type: 'image_generation', prompt: imagePrompt };
     }
 
-    const foodKeywords = ['order food', 'book food', 'get food', 'food delivery', 'order pizza', 'order burger', 'hungry', 'food order',// New, more general keywords for better coverage
-  'order',   // Catch all orders
-  'book',    // Catch all bookings
-  'biryani'  // Catch this specific, common food request];
-                          ]
-    const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
+    // --- CLEAN UP CONFLICTING LOGIC (MODE IS OFF) ---
 
-    if (isFoodRequest) {
+    // Generic Supabase Food Booking (Fallback/Legacy)
+    const genericFoodKeywords = ['order food', 'book food', 'get food', 'order pizza', 'order burger', 'food delivery', 'hungry', 'food order'];
+    const isGenericFoodRequest = genericFoodKeywords.some(keyword => lowerMessage.includes(keyword));
+
+    if (isGenericFoodRequest && !lowerMessage.includes('fasterbook')) {
       return { type: 'food_booking', result: {} as FoodBookingResult };
     }
 
+    // Generic Supabase Ticket Booking (Fallback/Legacy)
     const ticketKeywords = ['book ticket', 'buy ticket', 'get ticket', 'book seats', 'concert ticket', 'event ticket', 'reserve ticket'];
     const isTicketRequest = ticketKeywords.some(keyword => lowerMessage.includes(keyword));
 
-    if (isTicketRequest) {
+    if (isTicketRequest && !lowerMessage.includes('fasterbook')) {
       return { type: 'ticket_booking', result: {} as TicketBookingResult };
     }
 
-    const fasterBookFoodKeywords = ['fasterbook food', 'order from fasterbook', 'fasterbook delivery', 'use fasterbook for food'];
-    const isFasterBookFood = fasterBookFoodKeywords.some(keyword => lowerMessage.includes(keyword));
-
-    if (isFasterBookFood) {
-      return { type: 'fasterbook_food', result: {} as FoodBookingResponse };
-    }
-
-    const fasterBookMovieKeywords = ['fasterbook movie', 'book movie on fasterbook', 'fasterbook cinema', 'use fasterbook for movie'];
-    const isFasterBookMovie = fasterBookMovieKeywords.some(keyword => lowerMessage.includes(keyword));
-
-    if (isFasterBookMovie) {
-      return { type: 'fasterbook_movie', result: {} as MovieBookingResponse };
-    }
-
-    const showBookingsKeywords = ['show bookings', 'my bookings', 'view bookings', 'list bookings', 'get my orders'];
-    const isShowBookings = showBookingsKeywords.some(keyword => lowerMessage.includes(keyword));
-
-    if (isShowBookings) {
-      return { type: 'fasterbook_bookings', result: {} as BookingsResponse };
-    }
-
-    const showMenuKeywords = ['show menu', 'view menu', 'what food', 'what movies', 'available items', 'fasterbook menu', 'list menu'];
-    const isShowMenu = showMenuKeywords.some(keyword => lowerMessage.includes(keyword));
-
-    if (isShowMenu) {
-      return { type: 'fasterbook_menu', result: {} as AvailableItemsResponse };
-    }
+    // NOTE: All previous explicit fasterbook_... checks are removed from here.
 
     const restaurantKeywords = ['order restaurant', 'food delivery', 'order pizza', 'order burger', 'get me food', 'delivery food', 'restaurant order'];
     const isRestaurant = restaurantKeywords.some(keyword => lowerMessage.includes(keyword)) && !lowerMessage.includes('fasterbook');
@@ -319,49 +285,60 @@ export class GeminiService {
   };
 
   executeAgenticAction = async (message: string): Promise<AgenticAction> => {
+    // This is simplified now as the main routing is done in sendMessage
     const detectedAction = this.detectAgenticAction(message);
 
-    if (!detectedAction) return null;
+    // If we are in FasterBook mode, re-detect the specific FasterBook action type
+    // This handles the calls originating from the new mode logic in sendMessage.
+    let finalActionType = detectedAction?.type;
 
-    if (detectedAction.type === 'food_booking') {
+    if (message.includes('FASTERBOOK_FOOD_REQUEST') || message.includes('FASTERBOOK_MOVIE_REQUEST') || message.includes('FASTERBOOK_BOOKINGS_REQUEST') || message.includes('FASTERBOOK_MENU_REQUEST')) {
+      // This is a crude way to pass the request type from the conditional LLM path
+      const modeAction = this.detectFasterBookActionType(message.split(':').pop() || '');
+      if (modeAction) finalActionType = modeAction as any;
+    }
+    
+    if (!finalActionType) return null;
+
+    if (finalActionType === 'food_booking') {
       const params = await this.extractGenericFoodParams(message);
       const result = await bookFood(message, params);
       return { type: 'food_booking', result };
-    } else if (detectedAction.type === 'ticket_booking') {
+    } else if (finalActionType === 'ticket_booking') {
       const params = await this.extractGenericTicketParams(message);
       const result = await bookTicket(message, params);
       return { type: 'ticket_booking', result };
-    } else if (detectedAction.type === 'fasterbook_food') {
+    } else if (finalActionType === 'fasterbook_food') {
       const params = await this.extractFoodParams(message);
       const result = await this.fasterBookService.bookFood(params);
       return { type: 'fasterbook_food', result };
-    } else if (detectedAction.type === 'fasterbook_movie') {
+    } else if (finalActionType === 'fasterbook_movie') {
       const params = await this.extractMovieParams(message);
       const result = await this.fasterBookService.bookMovie(params);
       return { type: 'fasterbook_movie', result };
-    } else if (detectedAction.type === 'fasterbook_bookings') {
+    } else if (finalActionType === 'fasterbook_bookings') {
       const result = await this.fasterBookService.getBookings();
       return { type: 'fasterbook_bookings', result };
-    } else if (detectedAction.type === 'fasterbook_menu') {
+    } else if (finalActionType === 'fasterbook_menu') {
       const result = await this.fasterBookService.getAvailableItems();
       return { type: 'fasterbook_menu', result };
-    } else if (detectedAction.type === 'restaurant_order') {
+    } else if (finalActionType === 'restaurant_order') {
       const params = await this.extractRestaurantParams(message);
       const result = await mockRestaurantApi.placeOrder(params);
       return { type: 'restaurant_order', result };
-    } else if (detectedAction.type === 'hotel_booking') {
+    } else if (finalActionType === 'hotel_booking') {
       const params = await this.extractHotelParams(message);
       const result = await mockHotelApi.bookHotel(params);
       return { type: 'hotel_booking', result };
-    } else if (detectedAction.type === 'flight_booking') {
+    } else if (finalActionType === 'flight_booking') {
       const params = await this.extractFlightParams(message);
       const result = await mockFlightApi.bookFlight(params);
       return { type: 'flight_booking', result };
-    } else if (detectedAction.type === 'ride_booking') {
+    } else if (finalActionType === 'ride_booking') {
       const params = await this.extractRideParams(message);
       const result = await mockRideApi.bookRide(params);
       return { type: 'ride_booking', result };
-    } else if (detectedAction.type === 'image_generation') {
+    } else if (finalActionType === 'image_generation') {
       return detectedAction;
     }
 
@@ -517,7 +494,7 @@ Return ONLY the JSON object, no explanations.`;
 Return ONLY a valid JSON object with these fields:
 {
   "restaurant": "<restaurant_name or 'Delicious Bites'>",
-  "items": [{"name": "<item_name>", "quantity": <number>, "price": <number>}],
+  "items": [{"name": "<item_name>", "quantity": <number>, "price": <estimated_price>}],
   "address": "<delivery_address>",
   "totalAmount": <total_price>
 }
@@ -766,58 +743,4 @@ Return ONLY the JSON object, no explanations.`;
       ];
     }
   };
-
-  private async processFasterbookAgentRequest(message: string): Promise<string> {
-    try {
-      // First, check FasterBook menu for available items
-      const availableItems = await this.fasterBookService.getAvailableItemsCached();
-
-      let menuContext = 'AVAILABLE FASTERBOOK ITEMS:\n';
-      if (availableItems.success && availableItems.food) {
-        menuContext += '\nFood:\n';
-        menuContext += availableItems.food.map(item => `- ${item.id}: ${item.name}`).join('\n');
-      }
-      if (availableItems.success && availableItems.movies) {
-        menuContext += '\n\nMovies:\n';
-        menuContext += availableItems.movies.map(movie =>
-          `- ${movie.id}: ${movie.name} (Showtimes: ${movie.showTimes.map(t => new Date(t).toLocaleString()).join(', ')})`
-        ).join('\n');
-      }
-
-      const lowerMessage = message.toLowerCase();
-
-      // Detect if this is a food or movie request
-      const foodKeywords = ['food', 'order', 'biryani', 'pizza', 'eat', 'hungry', 'delivery', 'meal'];
-      const movieKeywords = ['movie', 'film', 'cinema', 'ticket', 'show', 'watch'];
-      const menuKeywords = ['menu', 'available', 'what', 'show me', 'list'];
-
-      const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
-      const isMovieRequest = movieKeywords.some(keyword => lowerMessage.includes(keyword));
-      const isMenuRequest = menuKeywords.some(keyword => lowerMessage.includes(keyword));
-
-      // If asking for menu, return it directly
-      if (isMenuRequest && (lowerMessage.includes('menu') || lowerMessage.includes('available') || lowerMessage.includes('what'))) {
-        return 'FASTERBOOK_MENU_REQUEST';
-      }
-
-      // Use agent chat to analyze the request
-      const agentPrompt = `${menuContext}\n\nUser request: "${message}"\n\nAnalyze this request and respond as a professional booking agent. If the request is complete and you have all needed information, respond with "READY_TO_PROCESS_[TYPE]" where TYPE is either FOOD or MOVIE. If information is missing, ask for it professionally and specifically.`;
-
-      const result = await this.agentChat.sendMessage(agentPrompt);
-      const responseText = await result.response.text();
-
-      // Check if agent says ready to process
-      if (responseText.includes('READY_TO_PROCESS_FOOD')) {
-        return 'FASTERBOOK_FOOD_REQUEST';
-      } else if (responseText.includes('READY_TO_PROCESS_MOVIE')) {
-        return 'FASTERBOOK_MOVIE_REQUEST';
-      }
-
-      // If not ready, return the agent's request for more information
-      return responseText;
-    } catch (error) {
-      console.error('Error in FasterBook agent mode:', error);
-      return 'I apologize, but I encountered an issue processing your FasterBook request. Please try again or provide more details about what you\'d like to order.';
-    }
-  }
 }
