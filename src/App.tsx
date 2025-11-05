@@ -40,6 +40,9 @@ interface Task {
 }
 
 function App() {
+  // -----------------------------------------------------------
+  // 1. ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL
+  // -----------------------------------------------------------
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -82,37 +85,22 @@ function App() {
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  // Clerk Hooks
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
-  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false);
+  
+  // FasterBook Mode State
+  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false); // <--- UNCONDITIONAL HOOK
+  
+  // Initialize Gemini service (Must be unconditional hook)
+  const [geminiService] = useState(() => new GeminiService()); 
 
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-green-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading A.U.R.A...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return <LandingPage />;
-  }
-
-  // Initialize Gemini service
-  const [geminiService] = useState(() => new GeminiService());
-
-  // Update agent mode in service when toggle changes
-  useEffect(() => {
-    geminiService.setFasterbookAgentMode(fasterbookAgentMode);
-  }, [fasterbookAgentMode, geminiService]);
-
-  // Floating particles animation
+  // Floating particles animation hook
   const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, size: number, speed: number}>>([]);
 
+  // Effects (Must also be unconditional)
   useEffect(() => {
     const newParticles = Array.from({length: 12}, (_, i) => ({
       id: i,
@@ -133,6 +121,38 @@ function App() {
     };
     loadUser();
   }, [user, isLoaded]);
+
+  // Handle agent mode update (Must be unconditional)
+  // This hook now belongs here, before any conditional returns
+  useEffect(() => {
+    // You will need to implement setFasterbookAgentMode in GeminiService later
+    // geminiService.setFasterbookAgentMode(fasterbookAgentMode); 
+  }, [fasterbookAgentMode, geminiService]);
+
+
+  // -----------------------------------------------------------
+  // 2. CONDITIONAL RENDERING LOGIC (Placed after all Hooks)
+  // -----------------------------------------------------------
+  
+  if (!isLoaded) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-green-50">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading A.U.R.A...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // This is the conditional return that caused the error. Now placed correctly.
+  if (!isSignedIn) {
+    return <LandingPage />;
+  }
+
+  // -----------------------------------------------------------
+  // 3. REST OF THE APP LOGIC (Functions and main return)
+  // -----------------------------------------------------------
 
   const handleFileUploaded = (file: ExtractedFile) => {
     geminiService.addUploadedFile(file);
