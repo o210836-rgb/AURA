@@ -1,10 +1,10 @@
 
-const SYSTEM_PROMPT = `You are A.U.R.A (A Universal Reasoning Agent), a highly intelligent AI assistant designed to help users with complex tasks, analysis, and problem-solving. You have access to uploaded documents and can provide contextual responses based on their content. 
-important NOTE:-you were devoloped by the group of undergrad cse  students thier names are Golla Santhosh Kumar	
+const SYSTEM_PROMPT = `You are A.U.R.A (A Universal Reasoning Agent), a highly intelligent AI assistant designed to help users with complex tasks, analysis, and problem-solving. You have access to uploaded documents and can provide contextual responses based on their content.
+important NOTE:-you were devoloped by the group of undergrad cse  students thier names are Golla Santhosh Kumar
 Vallepu Vijaya Lakshmi
-Nuthangi Chaitanya Karthik	
-Karnam  Hemanth Kumar	
-Shaik Veligandla Yasmin	
+Nuthangi Chaitanya Karthik
+Karnam  Hemanth Kumar
+Shaik Veligandla Yasmin
 Shaik Parveen
 Key capabilities:
 - Analyze and summarize documents
@@ -14,8 +14,32 @@ Key capabilities:
 - Maintain context across conversations
 
 Always be helpful, accurate, and provide detailed responses when analyzing uploaded documents.
-	
+
 `;
+
+const FASTERBOOK_AGENT_PROMPT = `You are a dedicated FasterBook booking agent. Your ONLY job is to process food orders and movie ticket bookings using the FasterBook API.
+
+STRICT RULES:
+1. You MUST ONLY use the FasterBook API for all booking requests
+2. You are NOT a general AI assistant - you are a booking agent
+3. NEVER give generic LLM responses like "I am only an AI"
+4. If a request is incomplete, ask for the SPECIFIC missing parameters needed for the API
+5. ALWAYS verify items exist in the FasterBook menu before processing orders
+
+For food orders, you need:
+- itemId (from FasterBook menu)
+- quantity
+- delivery address
+
+For movie bookings, you need:
+- movieId (from FasterBook menu)
+- seat numbers
+- showtime
+
+If the user's request is missing any of these, respond professionally asking for the missing information. Example:
+"I'd be happy to book that for you. I need to know: [missing parameters]. What would you prefer?"
+
+NEVER process requests outside of FasterBook bookings when in agent mode.`;
 
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ExtractedFile, chunkText, getRelevantChunks } from '../utils/fileExtractor';
@@ -57,13 +81,16 @@ export class GeminiService {
   private fileChunks: Map<string, string[]> = new Map();
   private imageService: ImageGenerationService;
   private fasterBookService: FasterBookService;
+  private fasterbookAgentMode: boolean = false;
+  private agentModel;
+  private agentChat;
 
   constructor() {
-    this.model = genAI.getGenerativeModel({ 
+    this.model = genAI.getGenerativeModel({
       model: "gemini-2.5-pro",
       systemInstruction: SYSTEM_PROMPT
     });
-    
+
     this.chat = this.model.startChat({
       history: this.history,
       generationConfig: {
@@ -72,8 +99,30 @@ export class GeminiService {
       },
     });
 
+    // Initialize agent mode model
+    this.agentModel = genAI.getGenerativeModel({
+      model: "gemini-2.5-pro",
+      systemInstruction: FASTERBOOK_AGENT_PROMPT
+    });
+
+    this.agentChat = this.agentModel.startChat({
+      history: [],
+      generationConfig: {
+        maxOutputTokens: 1024,
+        temperature: 0.3,
+      },
+    });
+
     this.imageService = new ImageGenerationService();
     this.fasterBookService = new FasterBookService();
+  }
+
+  setFasterbookAgentMode(enabled: boolean) {
+    this.fasterbookAgentMode = enabled;
+  }
+
+  getFasterbookAgentMode(): boolean {
+    return this.fasterbookAgentMode;
   }
 
   addUploadedFile(file: ExtractedFile) {
@@ -116,6 +165,11 @@ export class GeminiService {
 
   sendMessage = async (message: string): Promise<string> => {
     try {
+      // If FasterBook Agent Mode is ON, use strict agent pipeline
+      if (this.fasterbookAgentMode) {
+        return await this.processFasterbookAgentRequest(message);
+      }
+
       const detectedAction = this.detectAgenticAction(message);
 
       if (detectedAction) {
@@ -712,4 +766,58 @@ Return ONLY the JSON object, no explanations.`;
       ];
     }
   };
+
+  private async processFasterbookAgentRequest(message: string): Promise<string> {
+    try {
+      // First, check FasterBook menu for available items
+      const availableItems = await this.fasterBookService.getAvailableItemsCached();
+
+      let menuContext = 'AVAILABLE FASTERBOOK ITEMS:\n';
+      if (availableItems.success && availableItems.food) {
+        menuContext += '\nFood:\n';
+        menuContext += availableItems.food.map(item => `- ${item.id}: ${item.name}`).join('\n');
+      }
+      if (availableItems.success && availableItems.movies) {
+        menuContext += '\n\nMovies:\n';
+        menuContext += availableItems.movies.map(movie =>
+          `- ${movie.id}: ${movie.name} (Showtimes: ${movie.showTimes.map(t => new Date(t).toLocaleString()).join(', ')})`
+        ).join('\n');
+      }
+
+      const lowerMessage = message.toLowerCase();
+
+      // Detect if this is a food or movie request
+      const foodKeywords = ['food', 'order', 'biryani', 'pizza', 'eat', 'hungry', 'delivery', 'meal'];
+      const movieKeywords = ['movie', 'film', 'cinema', 'ticket', 'show', 'watch'];
+      const menuKeywords = ['menu', 'available', 'what', 'show me', 'list'];
+
+      const isFoodRequest = foodKeywords.some(keyword => lowerMessage.includes(keyword));
+      const isMovieRequest = movieKeywords.some(keyword => lowerMessage.includes(keyword));
+      const isMenuRequest = menuKeywords.some(keyword => lowerMessage.includes(keyword));
+
+      // If asking for menu, return it directly
+      if (isMenuRequest && (lowerMessage.includes('menu') || lowerMessage.includes('available') || lowerMessage.includes('what'))) {
+        return 'FASTERBOOK_MENU_REQUEST';
+      }
+
+      // Use agent chat to analyze the request
+      const agentPrompt = `${menuContext}\n\nUser request: "${message}"\n\nAnalyze this request and respond as a professional booking agent. If the request is complete and you have all needed information, respond with "READY_TO_PROCESS_[TYPE]" where TYPE is either FOOD or MOVIE. If information is missing, ask for it professionally and specifically.`;
+
+      const result = await this.agentChat.sendMessage(agentPrompt);
+      const responseText = await result.response.text();
+
+      // Check if agent says ready to process
+      if (responseText.includes('READY_TO_PROCESS_FOOD')) {
+        return 'FASTERBOOK_FOOD_REQUEST';
+      } else if (responseText.includes('READY_TO_PROCESS_MOVIE')) {
+        return 'FASTERBOOK_MOVIE_REQUEST';
+      }
+
+      // If not ready, return the agent's request for more information
+      return responseText;
+    } catch (error) {
+      console.error('Error in FasterBook agent mode:', error);
+      return 'I apologize, but I encountered an issue processing your FasterBook request. Please try again or provide more details about what you\'d like to order.';
+    }
+  }
 }

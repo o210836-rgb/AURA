@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, LogOut, User, Network } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, LogOut, User, Network, ShoppingBag } from 'lucide-react';
 import { GeminiService } from './services/gemini';
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -85,6 +85,7 @@ function App() {
   const { user, isLoaded, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
+  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false);
 
   if (!isLoaded) {
     return (
@@ -103,6 +104,11 @@ function App() {
 
   // Initialize Gemini service
   const [geminiService] = useState(() => new GeminiService());
+
+  // Update agent mode in service when toggle changes
+  useEffect(() => {
+    geminiService.setFasterbookAgentMode(fasterbookAgentMode);
+  }, [fasterbookAgentMode, geminiService]);
 
   // Floating particles animation
   const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, size: number, speed: number}>>([]);
@@ -800,14 +806,49 @@ function App() {
                 </div>
               )}
               
+              {/* FasterBook Agent Mode Toggle */}
+              <div className="mb-4 flex items-center justify-between p-4 bg-white/40 backdrop-blur-sm border border-sage-200/50 rounded-xl">
+                <div className="flex items-center space-x-3">
+                  <ShoppingBag className={`w-5 h-5 ${fasterbookAgentMode ? 'text-orange-600' : 'text-gray-400'}`} />
+                  <div>
+                    <p className={`font-semibold text-sm ${fasterbookAgentMode ? 'text-orange-900' : 'text-gray-700'}`}>
+                      FasterBook Agent Mode
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      {fasterbookAgentMode
+                        ? 'Using FasterBook API exclusively for all bookings'
+                        : 'General assistant mode'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setFasterbookAgentMode(!fasterbookAgentMode)}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+                    fasterbookAgentMode ? 'bg-orange-600' : 'bg-gray-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform duration-300 ${
+                      fasterbookAgentMode ? 'translate-x-7' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
                 <div className="flex-1 relative">
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    placeholder="Chat with A.U.R.A, book food/movies via FasterBook, upload documents, or generate images..."
-                    className="w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm border border-sage-200/50 rounded-2xl focus:outline-none focus:ring-2 focus:ring-sage-300 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32"
+                    placeholder={fasterbookAgentMode
+                      ? "FasterBook Agent: Order food or book movie tickets (e.g., 'I want biryani' or 'Book a movie')"
+                      : "Chat with A.U.R.A, book food/movies via FasterBook, upload documents, or generate images..."}
+                    className={`w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
+                      fasterbookAgentMode
+                        ? 'border-2 border-orange-400 focus:ring-orange-500'
+                        : 'border border-sage-200/50 focus:ring-sage-300'
+                    }`}
                     rows={1}
                   />
 
