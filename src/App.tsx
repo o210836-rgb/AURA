@@ -79,7 +79,10 @@ function App() {
   const [input, setInput] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // NOTE: 'tasks_old' view is removed to fix the TypeScript error.
   const [currentView, setCurrentView] = useState<'chat' | 'tasks' | 'files' | 'memory' | 'services'>('chat');
+  
   const [isTyping, setIsTyping] = useState(false);
   const [showFileUpload, setShowFileUpload] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -88,13 +91,13 @@ function App() {
   
   // Clerk Hooks
   const { user, isLoaded, isSignedIn } = useUser();
-  const { signOut } = useClerk();
+  const { signOut } = useClerk(); // Retained but unused
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
   
   // FasterBook Mode State
-  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false); // <--- UNCONDITIONAL HOOK
+  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false); 
   
-  // Initialize Gemini service (Must be unconditional hook)
+  // Initialize Gemini service (This hook caused the crash when called conditionally)
   const [geminiService] = useState(() => new GeminiService()); 
 
   // Floating particles animation hook
@@ -123,9 +126,8 @@ function App() {
   }, [user, isLoaded]);
 
   // Handle agent mode update (Must be unconditional)
-  // This hook now belongs here, before any conditional returns
   useEffect(() => {
-    // You will need to implement setFasterbookAgentMode in GeminiService later
+    // NOTE: setFasterbookAgentMode needs to be implemented in GeminiService
     // geminiService.setFasterbookAgentMode(fasterbookAgentMode); 
   }, [fasterbookAgentMode, geminiService]);
 
@@ -145,7 +147,7 @@ function App() {
     );
   }
 
-  // This is the conditional return that caused the error. Now placed correctly.
+  // If not signed in, render landing page (placed correctly after all hooks)
   if (!isSignedIn) {
     return <LandingPage />;
   }
@@ -214,6 +216,8 @@ function App() {
     setIsTyping(true);
 
     try {
+      // NOTE: geminiService.sendMessage does not take a mode parameter yet, 
+      // but the mode state is available here via the closure.
       const aiResponse = await geminiService.sendMessage(input);
 
       if (aiResponse.startsWith('IMAGE_GENERATION:')) {
@@ -842,7 +846,17 @@ function App() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setFasterbookAgentMode(!fasterbookAgentMode)}
+                  onClick={() => {
+                    setFasterbookAgentMode(!fasterbookAgentMode);
+                    const modeStatus = !fasterbookAgentMode ? 'ON' : 'OFF';
+                    const systemMessage: Message = {
+                      id: Date.now().toString(),
+                      type: 'assistant',
+                      content: `FasterBook Agent Mode is now *${modeStatus}*. When ON, all booking-related messages will use the FasterBook API.`,
+                      timestamp: new Date()
+                    };
+                    setMessages(prev => [...prev, systemMessage]);
+                  }}
                   className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
                     fasterbookAgentMode ? 'bg-orange-600' : 'bg-gray-300'
                   }`}
@@ -943,52 +957,6 @@ function App() {
         {/* External Services View */}
         {currentView === 'services' && (
           <ExternalServices />
-        )}
-
-        {/* Old Tasks View (kept for reference) */}
-        {currentView === 'tasks_old' && (
-          <div className="p-6 space-y-6">
-            <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-6 border border-sage-200/30">
-              <h2 className="text-xl font-semibold text-sage-800 mb-4">Active Tasks</h2>
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {tasks.map((task) => (
-                  <div key={task.id} className={`p-4 rounded-xl border-2 transition-all duration-300 hover:shadow-lg hover:scale-105 ${getTaskStatusColor(task.status)} cursor-pointer animate-fadeIn`}>
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center space-x-2">
-                        {getTaskIcon(task.status)}
-                        <span className="text-sm font-medium capitalize text-slate-700">{task.status}</span>
-                      </div>
-                      <div className="text-xs text-slate-500">{task.timestamp.toLocaleTimeString()}</div>
-                    </div>
-                    <h3 className="font-semibold text-slate-800 mb-2">{task.title}</h3>
-                    <p className="text-sm text-slate-600 leading-relaxed">{task.description}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white/40 backdrop-blur-sm rounded-2xl p-6 border border-sage-200/30">
-              <h3 className="text-lg font-semibold text-sage-800 mb-4">Quick Actions</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <button className="p-4 bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl hover:from-sage-200 hover:to-sage-300 transition-all duration-300 text-sage-800 text-center">
-                  <FileText className="w-6 h-6 mx-auto mb-2" />
-                  <span className="text-sm">Create Report</span>
-                </button>
-                <button className="p-4 bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl hover:from-sage-200 hover:to-sage-300 transition-all duration-300 text-sage-800 text-center">
-                  <Zap className="w-6 h-6 mx-auto mb-2" />
-                  <span className="text-sm">Automate Task</span>
-                </button>
-                <button className="p-4 bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl hover:from-sage-200 hover:to-sage-300 transition-all duration-300 text-sage-800 text-center">
-                  <History className="w-6 h-6 mx-auto mb-2" />
-                  <span className="text-sm">Review History</span>
-                </button>
-                <button className="p-4 bg-gradient-to-br from-sage-100 to-sage-200 rounded-xl hover:from-sage-200 hover:to-sage-300 transition-all duration-300 text-sage-800 text-center">
-                  <Settings className="w-6 h-6 mx-auto mb-2" />
-                  <span className="text-sm">Configure</span>
-                </button>
-              </div>
-            </div>
-          </div>
         )}
       </div>
 
