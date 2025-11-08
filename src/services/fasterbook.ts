@@ -1,104 +1,101 @@
-const FASTERBOOK_API = 'https://fasterbook.onrender.com';
-const API_KEY = 'AURA-TEST-KEY-12345';
+// src/services/fasterbook.ts
 
-export interface FoodBookingParams {
-  itemId: string;
-  quantity: number;
-  address: string;
-}
+// API key - ensure this is set in your environment
+const API_KEY = import.meta.env.VITE_FASTERBOOK_API_KEY || 'your_default_key_here';
+const API_BASE_URL = 'https://fasterbook.onrender.com/api'; // Your live API base URL
 
-export interface MovieBookingParams {
-  movieId: string;
-  seats: string[];
-  showTime: string;
-}
+// --- Interfaces (Copied from App.tsx for standalone service) ---
 
 export interface FoodBookingResponse {
-  success: boolean;
-  bookingId?: string;
-  itemId?: string;
-  quantity?: number;
-  address?: string;
-  totalPrice?: number;
-  estimatedDelivery?: string;
-  message: string;
-  error?: string;
+  bookingId: string;
+  itemId: string;
+  quantity: number;
+  totalPrice: number;
+  address: string;
+  status: string;
+  estimatedDelivery: string;
 }
 
 export interface MovieBookingResponse {
-  success: boolean;
-  bookingId?: string;
-  movieId?: string;
-  seats?: string[];
-  showTime?: string;
-  totalPrice?: number;
-  theater?: string;
-  message: string;
-  error?: string;
-}
-
-export interface Booking {
-  id: string;
-  type: 'food' | 'movie';
-  details: any;
-  timestamp: string;
+  bookingId: string;
+  movieId: string;
+  movieTitle: string;
+  seats: string[];
+  totalPrice: number;
+  status: string;
 }
 
 export interface BookingsResponse {
-  success: boolean;
-  bookings?: Booking[];
-  message?: string;
-  error?: string;
+  foodBookings: FoodBookingResponse[];
+  movieBookings: MovieBookingResponse[];
 }
 
-export interface FoodItem {
+export interface AvailableItem {
   id: string;
   name: string;
-}
-
-export interface Movie {
-  id: string;
-  name: string;
-  showTimes: string[];
+  price: number;
+  description?: string;
+  category: string;
+  available: boolean;
 }
 
 export interface AvailableItemsResponse {
-  success: boolean;
-  food?: FoodItem[];
-  movies?: Movie[];
-  message?: string;
-  error?: string;
+  items: AvailableItem[];
+  categories: string[];
 }
 
+// --- Service Class ---
+
 export class FasterBookService {
-  private apiUrl: string;
   private apiKey: string;
-  private availableItemsCache: AvailableItemsResponse | null = null;
-  private cacheTimestamp: number = 0;
-  private readonly CACHE_DURATION = 5 * 60 * 1000;
+  private baseUrl: string;
 
   constructor() {
-    this.apiUrl = FASTERBOOK_API;
     this.apiKey = API_KEY;
+    this.baseUrl = API_BASE_URL;
+    if (!this.apiKey) {
+      console.warn('FasterBook API key is missing. Please check your .env file.');
+    }
   }
 
-  async getAvailableItemsCached(): Promise<AvailableItemsResponse> {
-    const now = Date.now();
-    if (this.availableItemsCache && (now - this.cacheTimestamp) < this.CACHE_DURATION) {
-      return this.availableItemsCache;
-    }
-
-    const result = await this.getAvailableItems();
-    if (result.success) {
-      this.availableItemsCache = result;
-      this.cacheTimestamp = now;
-    }
-    return result;
-  }
-
-  async bookFood(params: FoodBookingParams): Promise<FoodBookingResponse> {
+  /**
+   * Fetches the available food menu from the FasterBook API.
+   * This is the new function to get real item data.
+   */
+  async getFoodMenu(): Promise<AvailableItemsResponse> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/book-food`, {
+      const response = await fetch(`${this.baseUrl}/menu`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': this.apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch menu from FasterBook.');
+      }
+
+      const data: AvailableItemsResponse = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error fetching FasterBook menu:', error);
+      throw new Error(error instanceof Error ? error.message : 'An unknown error occurred while fetching the menu.');
+    }
+  }
+
+  /**
+   * Attempts to book a food order.
+   * This function is UPDATED to handle real server errors.
+   */
+  async bookFood(params: {
+    itemId: string;
+    quantity: number;
+    address: string;
+  }): Promise<FoodBookingResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/book/food`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -107,34 +104,31 @@ export class FasterBookService {
         body: JSON.stringify(params),
       });
 
-      const data = await response.json();
-
+      // *** THIS IS THE CRITICAL CHANGE ***
+      // It now reads the error message from your server (e.g., "Ongole" error)
       if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'Failed to book food',
-          error: data.error || 'Unknown error',
-        };
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to book food order.');
       }
 
-      return {
-        success: true,
-        ...data,
-        message: data.message || 'Food order placed successfully!',
-      };
+      const data: FoodBookingResponse = await response.json();
+      return data;
     } catch (error) {
-      console.error('FasterBook food booking error:', error);
-      return {
-        success: false,
-        message: 'Failed to connect to FasterBook API',
-        error: error instanceof Error ? error.message : 'Network error',
-      };
+      console.error('Error in bookFood service:', error);
+      // Re-throw the specific error message from the server
+      throw error;
     }
   }
 
-  async bookMovie(params: MovieBookingParams): Promise<MovieBookingResponse> {
+  /**
+   * Attempts to book movie tickets.
+   */
+  async bookMovie(params: {
+    movieId: string;
+    seats: string[];
+  }): Promise<MovieBookingResponse> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/book-movie`, {
+      const response = await fetch(`${this.baseUrl}/book/movie`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,34 +137,25 @@ export class FasterBookService {
         body: JSON.stringify(params),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'Failed to book movie tickets',
-          error: data.error || 'Unknown error',
-        };
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to book movie tickets.');
       }
 
-      return {
-        success: true,
-        ...data,
-        message: data.message || 'Movie tickets booked successfully!',
-      };
+      const data: MovieBookingResponse = await response.json();
+      return data;
     } catch (error) {
-      console.error('FasterBook movie booking error:', error);
-      return {
-        success: false,
-        message: 'Failed to connect to FasterBook API',
-        error: error instanceof Error ? error.message : 'Network error',
-      };
+      console.error('Error in bookMovie service:', error);
+      throw error;
     }
   }
 
+  /**
+   * Fetches all past bookings.
+   */
   async getBookings(): Promise<BookingsResponse> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/bookings`, {
+      const response = await fetch(`${this.baseUrl}/bookings`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -178,64 +163,16 @@ export class FasterBookService {
         },
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'Failed to fetch bookings',
-          error: data.error || 'Unknown error',
-        };
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch bookings.');
       }
 
-      return {
-        success: true,
-        bookings: data.bookings || [],
-        message: data.message || 'Bookings retrieved successfully',
-      };
+      const data: BookingsResponse = await response.json();
+      return data;
     } catch (error) {
-      console.error('FasterBook get bookings error:', error);
-      return {
-        success: false,
-        message: 'Failed to connect to FasterBook API',
-        error: error instanceof Error ? error.message : 'Network error',
-      };
-    }
-  }
-
-  async getAvailableItems(): Promise<AvailableItemsResponse> {
-    try {
-      const response = await fetch(`${this.apiUrl}/api/available`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        return {
-          success: false,
-          message: data.message || 'Failed to fetch available items',
-          error: data.error || 'Unknown error',
-        };
-      }
-
-      return {
-        success: true,
-        food: data.food || [],
-        movies: data.movies || [],
-        message: 'Available items retrieved successfully',
-      };
-    } catch (error) {
-      console.error('FasterBook get available items error:', error);
-      return {
-        success: false,
-        message: 'Failed to connect to FasterBook API',
-        error: error instanceof Error ? error.message : 'Network error',
-      };
+      console.error('Error in getBookings service:', error);
+      throw error;
     }
   }
 }
