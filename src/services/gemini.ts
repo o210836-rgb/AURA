@@ -54,7 +54,7 @@ export class GeminiService {
       throw new Error('VITE_GEMINI_API_KEY is not defined in .env');
     }
     this.genAI = new GoogleGenerativeAI(API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
     this.fasterBookService = new FasterBookService();
   }
 
