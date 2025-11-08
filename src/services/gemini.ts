@@ -13,6 +13,19 @@ import {
 import { bookFoodLegacy, FoodBookingResult } from './foodBooking';
 import { bookTicketsLegacy, TicketBookingResult } from './ticketBooking';
 
+// --- NEW: Custom Error for follow-up questions ---
+/**
+ * A custom error to indicate that the agent needs more information
+ * from the user to complete an action.
+ */
+export class MissingDetailsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MissingDetailsError';
+  }
+}
+// --- END NEW ---
+
 // Define action types
 type ActionType =
   | 'IMAGE_GENERATION'
@@ -24,16 +37,14 @@ type ActionType =
   | 'FASTERBOOK_BOOKINGS_REQUEST'
   | 'GENERAL_CHAT';
 
-// --- NEW: Define cache properties ---
 const CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
-  private model: any; // Using 'any' for simplicity, should be GenerativeModel
+  private model: any; 
   private uploadedFiles: ExtractedFile[] = [];
   private fasterBookService: FasterBookService;
 
-  // --- NEW: Caching for FasterBook Menu ---
   private foodMenuCache: AvailableItemsResponse | null = null;
   private menuCacheTimestamp: number = 0;
 
@@ -47,9 +58,6 @@ export class GeminiService {
     this.fasterBookService = new FasterBookService();
   }
 
-  /**
-   * Fetches the food menu from FasterBook service and caches it.
-   */
   private async getCachedFoodMenu(): Promise<AvailableItemsResponse> {
     const now = Date.now();
     if (this.foodMenuCache && (now - this.menuCacheTimestamp < CACHE_DURATION_MS)) {
@@ -59,20 +67,16 @@ export class GeminiService {
 
     console.log('Fetching new FasterBook menu...');
     try {
-      // This calls the function on fasterBookService
       const menu = await this.fasterBookService.getFoodMenu(); 
       this.foodMenuCache = menu;
       this.menuCacheTimestamp = now;
       return menu;
     } catch (error) {
       console.error('Failed to fetch and cache menu:', error);
-      // Re-throw the original error so the user can see it in the chat
       throw error;
     }
   }
 
-
-  // ... (File handling methods: addUploadedFile, etc. remain unchanged) ...
   addUploadedFile(file: ExtractedFile) {
     this.uploadedFiles.push(file);
   }
@@ -85,22 +89,16 @@ export class GeminiService {
     return this.uploadedFiles;
   }
 
-  // ... (generateImage method remains unchanged) ...
   async generateImage(prompt: string): Promise<string> {
     return generateImage(prompt);
   }
 
-  /**
-   * Main entry point for processing a user's message.
-   */
   async sendMessage(message: string, isFasterBookMode: boolean): Promise<string> {
     try {
       if (isFasterBookMode) {
-        // --- FasterBook Mode Logic ---
         const actionType = this.detectFasterBookActionType(message);
 
         if (actionType === 'GENERAL_CHAT') {
-          // If intent is unclear, force a clarification
           const clarificationPrompt = `
             You are "FasterBook Agent", a specialized AI for booking food and movies.
             The user said: "${message}".
@@ -111,14 +109,13 @@ export class GeminiService {
           const result = await this.model.generateContent(clarificationPrompt);
           return result.response.text();
         }
-        return actionType; // Return the action string (e.g., "FASTERBOOK_FOOD_REQUEST")
+        return actionType; 
       }
 
-      // --- General A.U.R.A Mode Logic ---
       const actionType = this.detectActionType(message);
 
       if (actionType !== 'GENERAL_CHAT') {
-        return actionType; // e.g., "IMAGE_GENERATION"
+        return actionType; 
       }
 
       let prompt = `You are A.U.R.A, a helpful assistant.
@@ -140,9 +137,6 @@ export class GeminiService {
     }
   }
 
-  /**
-   * Detects specialized actions for FasterBook mode.
-   */
   private detectFasterBookActionType(message: string): ActionType | 'GENERAL_CHAT' {
     const lowerMessage = message.toLowerCase();
     if (lowerMessage.includes('order') || lowerMessage.includes('book') || lowerMessage.includes('get') || lowerMessage.includes('want')) {
@@ -162,9 +156,6 @@ export class GeminiService {
     return 'GENERAL_CHAT';
   }
 
-  /**
-   * Detects general actions (like image gen) for A.U.R.A mode.
-   */
   private detectActionType(message: string): ActionType | 'GENERAL_CHAT' {
     const lowerMessage = message.toLowerCase();
     if (lowerMessage.startsWith('generate image:') || lowerMessage.startsWith('create image:')) {
@@ -179,32 +170,28 @@ export class GeminiService {
     return 'GENERAL_CHAT';
   }
 
-  /**
-   * Executes the detected agentic action.
-   */
   public async executeAgenticAction(
     message: string,
     action: string
   ): Promise<{ type: string; result: any } | null> {
     
     switch (action) {
-      // --- FASTERBOOK ACTIONS ---
       case 'FASTERBOOK_FOOD_REQUEST':
         console.log('Executing FasterBook Food Request...');
-        const params = await this.extractFoodParams(message); // Now async
-        if (params.error) throw new Error(params.error); // Handle "not on menu" error
+        const params = await this.extractFoodParams(message);
+        if (params.error) throw new Error(params.error);
         const foodResult = await this.fasterBookService.bookFood(params);
         return { type: 'fasterbook_food', result: foodResult };
 
       case 'FASTERBOOK_MOVIE_REQUEST':
         console.log('Executing FasterBook Movie Request...');
-        const movieParams = await this.extractMovieParams(message); // Assuming this exists
+        const movieParams = await this.extractMovieParams(message); 
         const movieResult = await this.fasterBookService.bookMovie(movieParams);
         return { type: 'fasterbook_movie', result: movieResult };
 
       case 'FASTERBOOK_MENU_REQUEST':
         console.log('Executing FasterBook Menu Request...');
-        const menuResult = await this.getCachedFoodMenu(); // Use the cache
+        const menuResult = await this.getCachedFoodMenu();
         return { type: 'fasterbook_menu', result: menuResult };
 
       case 'FASTERBOOK_BOOKINGS_REQUEST':
@@ -212,7 +199,6 @@ export class GeminiService {
         const bookingsResult = await this.fasterBookService.getBookings();
         return { type: 'fasterbook_bookings', result: bookingsResult };
 
-      // --- LEGACY ACTIONS ---
       case 'FOOD_BOOKING_REQUEST':
         console.log('Executing Legacy Food Request...');
         const legacyFoodResult = bookFoodLegacy(message);
@@ -233,8 +219,6 @@ export class GeminiService {
    * Extracts food booking parameters using AI, now with the REAL menu.
    */
   private async extractFoodParams(message: string): Promise<any> {
-    // --- STEP 1: Get the REAL menu ---
-    // *** THIS IS THE FIX. It calls the correct function name ***
     const menu = await this.getCachedFoodMenu(); 
     
     if (!menu || menu.items.length === 0) {
@@ -247,7 +231,6 @@ export class GeminiService {
       price: item.price
     })));
 
-    // --- STEP 2: Create a strict prompt ---
     const prompt = `
       You are a JSON extractor for a food booking system.
       The user wants to order food. User's message: "${message}"
@@ -271,54 +254,54 @@ export class GeminiService {
       Respond with ONLY the JSON object.
     `;
 
-    // --- STEP 3: Generate and parse response ---
     try {
       const result = await this.model.generateContent(prompt);
       const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
       const params = JSON.parse(responseText);
 
-      // --- STEP 4: Handle AI-detected errors ---
       if (params.error) {
+        // --- MODIFIED: Use the new custom error ---
         if (params.error.startsWith('MISSING_DETAILS:')) {
-          throw new Error(params.error.replace('MISSING_DETAILS:', ''));
+          throw new MissingDetailsError(params.error.replace('MISSING_DETAILS:', ''));
         }
-        throw new Error(params.error); // This will catch "Sorry, that item is not on our menu."
+        // --- END MODIFICATION ---
+        throw new Error(params.error);
       }
 
-      // Final check for missing details
+      // --- MODIFIED: Use the new custom error ---
       if (!params.address) {
-        throw new Error('Where should I deliver this order?');
+        throw new MissingDetailsError('Where should I deliver this order?');
       }
+      // --- END MODIFICATION ---
+
       if (!params.itemId) {
          throw new Error("I'm sorry, I couldn't find that item on the menu. Please specify an available item.");
       }
 
       return {
         itemId: params.itemId,
-        quantity: params.quantity || 1, // Default quantity
+        quantity: params.quantity || 1, 
         address: params.address
       };
 
     } catch (e) {
       console.error('Error in extractFoodParams:', e);
       if (e instanceof Error) {
-        throw e; // Re-throw the specific error ("Not on menu", "Missing address", etc.)
+        throw e;
       }
       throw new Error('I had trouble understanding your order. Could you please rephrase it?');
     }
   }
 
-  // A placeholder for movie param extraction. This would need a similar implementation.
   private async extractMovieParams(message: string): Promise<any> {
     console.warn('extractMovieParams is not fully implemented. Using mock data.');
-    // You would fetch /api/movies here and use a similar AI prompt.
-    // For now, let's hardcode for testing.
     if (message.toLowerCase().includes('leo')) {
       return {
         movieId: 'm1',
         seats: ['A1', 'A2']
       };
     }
+    // This should also use MissingDetailsError if, e.g., seats are missing
     throw new Error('I could not find that movie. Please try again.');
   }
 }
