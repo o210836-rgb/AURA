@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, User, Network, ShoppingBag } from 'lucide-react';
+import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, User, Network, ShoppingBag, ChevronDown, Brain } from 'lucide-react';
 import { GeminiService } from './services/gemini';
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -40,6 +40,9 @@ interface Task {
   timestamp: Date;
 }
 
+// --- NEW: Type definition for our modes ---
+type AppMode = 'aura' | 'fasterbook';
+
 function App() {
   // -----------------------------------------------------------
   // 1. ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL
@@ -74,8 +77,9 @@ function App() {
   const { signOut } = useClerk(); // Retained but unused
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
   
-  // FasterBook Mode State
-  const [fasterbookAgentMode, setFasterbookAgentMode] = useState(false); 
+  // --- NEW: State for mode dropdown ---
+  const [currentMode, setCurrentMode] = useState<AppMode>('aura');
+  const [showModeDropdown, setShowModeDropdown] = useState(false);
   
   // Initialize Gemini service (Unconditional)
   const [geminiService] = useState(() => new GeminiService()); 
@@ -105,8 +109,6 @@ function App() {
     loadUser();
   }, [user, isLoaded]);
 
-  // Removed the faulty useEffect that tried to set the mode
-
   // -----------------------------------------------------------
   // 2. CONDITIONAL RENDERING LOGIC (Placed after all Hooks)
   // -----------------------------------------------------------
@@ -129,6 +131,27 @@ function App() {
   // -----------------------------------------------------------
   // 3. REST OF THE APP LOGIC (Functions and main return)
   // -----------------------------------------------------------
+
+  // --- NEW: Handler for changing the mode ---
+  const handleModeChange = (newMode: AppMode) => {
+    if (newMode === currentMode) {
+      setShowModeDropdown(false);
+      return;
+    }
+
+    setCurrentMode(newMode);
+    setShowModeDropdown(false);
+
+    // Send a system message to confirm the change
+    const modeName = newMode === 'aura' ? 'General A.U.R.A Mode' : 'FasterBook Agent Mode';
+    const systemMessage: Message = {
+      id: Date.now().toString(),
+      type: 'assistant',
+      content: `Switched to *${modeName}*.`,
+      timestamp: new Date()
+    };
+    setMessages(prev => [...prev, systemMessage]);
+  };
 
   const handleFileUploaded = (file: ExtractedFile) => {
     geminiService.addUploadedFile(file);
@@ -181,10 +204,10 @@ function App() {
     setIsTyping(true);
 
     try {
-      // --- THIS IS THE FIX ---
-      // Pass the mode state *directly* to the service on every call
-      const aiResponse = await geminiService.sendMessage(messageToSend, fasterbookAgentMode);
-      // --- END FIX ---
+      // --- MODIFIED: Use the new currentMode state ---
+      const isFasterBook = currentMode === 'fasterbook';
+      const aiResponse = await geminiService.sendMessage(messageToSend, isFasterBook);
+      // --- END MODIFICATION ---
 
       // Handle Image Generation
       if (aiResponse.startsWith('IMAGE_GENERATION:')) {
@@ -520,7 +543,7 @@ function App() {
               )}
             </div>
 
-            {/* --- MODIFIED INPUT AREA --- */}
+            {/* --- NEW INPUT AREA with Dropdown --- */}
             <div className="p-6 bg-white/20 backdrop-blur-sm border-t border-sage-200/30">
               {/* Upload Error */}
               {uploadError && (
@@ -530,57 +553,71 @@ function App() {
                 </div>
               )}
 
+              {/* Mode Selector Dropdown */}
+              <div className="relative mb-3 flex justify-center">
+                <button
+                  onClick={() => setShowModeDropdown(!showModeDropdown)}
+                  className="flex items-center space-x-2 px-4 py-2 bg-white/60 backdrop-blur-sm rounded-lg border border-sage-200/50 hover:bg-sage-50 transition-all text-sage-800 font-medium"
+                >
+                  {currentMode === 'aura' ? (
+                    <Brain className="w-5 h-5 text-sage-600" />
+                  ) : (
+                    <ShoppingBag className="w-5 h-5 text-orange-600" />
+                  )}
+                  <span>
+                    {currentMode === 'aura' ? 'A.U.R.A' : 'FasterBook Agent'}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 transition-transform ${showModeDropdown ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {showModeDropdown && (
+                  <div className="absolute bottom-full mb-2 w-72 bg-white rounded-xl shadow-2xl border border-sage-200/50 p-2 z-10 animate-bloom">
+                    <button
+                      onClick={() => handleModeChange('aura')}
+                      className={`w-full flex items-start space-x-3 p-3 rounded-lg hover:bg-sage-50 ${currentMode === 'aura' ? 'bg-sage-100' : ''}`}
+                    >
+                      <Leaf className="w-5 h-5 text-sage-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-sage-800 text-left">A.U.R.A</p>
+                        <p className="text-sm text-sage-600 text-left">General chat, file analysis, and image generation.</p>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => handleModeChange('fasterbook')}
+                      className={`w-full flex items-start space-x-3 p-3 rounded-lg hover:bg-orange-50 ${currentMode === 'fasterbook' ? 'bg-orange-100' : ''}`}
+                    >
+                      <ShoppingBag className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-semibold text-orange-800 text-left">FasterBook Agent</p>
+                        <p className="text-sm text-orange-600 text-left">Dedicated agent for booking food and movies.</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+              
               {/* Main Input Bar */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
                 
-                {/* Textarea with Integrated Toggle */}
+                {/* Textarea (NOW CLEANED) */}
                 <div className="flex-1 relative">
-                  
-                  {/* FasterBook Agent Mode Toggle (Integrated) */}
-                  <div className={`absolute top-1/2 left-3 transform -translate-y-1/2 flex items-center space-x-2 pr-2 border-r border-gray-300 z-10`}>
-                    <ShoppingBag className={`w-4 h-4 transition-colors duration-300 ${fasterbookAgentMode ? 'text-orange-600' : 'text-gray-400'}`} />
-                    <button
-                      onClick={() => {
-                        const newMode = !fasterbookAgentMode;
-                        setFasterbookAgentMode(newMode);
-                        const modeStatus = newMode ? 'ON' : 'OFF';
-                        const systemMessage: Message = {
-                          id: Date.now().toString(),
-                          type: 'assistant',
-                          content: `FasterBook Agent Mode is now *${modeStatus}*.`,
-                          timestamp: new Date()
-                        };
-                        setMessages(prev => [...prev, systemMessage]);
-                      }}
-                      className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors duration-300 focus:outline-none focus:ring-1 focus:ring-orange-500 focus:ring-offset-1 ${
-                        fasterbookAgentMode ? 'bg-orange-600' : 'bg-gray-300'
-                      }`}
-                      title={fasterbookAgentMode ? 'Agent Mode ON' : 'Agent Mode OFF'}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
-                          fasterbookAgentMode ? 'translate-x-5' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                <textarea
+                  <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    placeholder={fasterbookAgentMode
+                    placeholder={currentMode === 'fasterbook'
                       ? "Agent Mode: Order food or book movies..."
                       : "Chat with A.U.R.A..."}
-                    className={`w-full py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
-                      fasterbookAgentMode
-                        ? 'border-2 border-orange-400 focus:ring-orange-500 pl-28 pr-4 sm:pr-6'
-                        : 'border border-sage-200/50 focus:ring-sage-300 px-4 sm:px-6'
+                    className={`w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
+                      currentMode === 'fasterbook'
+                        ? 'border-2 border-orange-400 focus:ring-orange-500'
+                        : 'border border-sage-200/50 focus:ring-sage-300'
                     }`}
                     rows={1}
                   />
 
-                  {geminiService.getUploadedFiles().length > 0 && (
+                  {geminiService.getUploadedFiles().length > 0 && currentMode === 'aura' && (
                     <div className="absolute -top-8 left-2 text-xs text-sage-600 bg-sage-100/80 px-2 py-1 rounded-md">
                       📎 {geminiService.getUploadedFiles().length} file(s) attached
                     </div>
@@ -594,16 +631,16 @@ function App() {
                   onChange={handleQuickFileUpload}
                   className="hidden"
                   id="quick-file-upload"
-                  disabled={isUploadingFile}
+                  disabled={isUploadingFile || currentMode === 'fasterbook'}
                 />
 
                 {/* Action Buttons */}
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <button
                     onClick={() => document.getElementById('quick-file-upload')?.click()}
-                    disabled={isUploadingFile}
+                    disabled={isUploadingFile || currentMode === 'fasterbook'}
                     className="p-3 sm:p-4 rounded-xl bg-sage-100 text-sage-600 hover:bg-sage-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    title="Upload file"
+                    title={currentMode === 'fasterbook' ? 'File upload disabled in Agent Mode' : 'Upload file'}
                   >
                     {isUploadingFile ? <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
@@ -617,7 +654,11 @@ function App() {
                   <button
                     onClick={handleSendMessage}
                     disabled={!input.trim() || isTyping || isGeneratingImage}
-                    className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-sage-500 to-sage-600 text-white rounded-xl hover:from-sage-600 hover:to-sage-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md text-sm sm:text-base font-medium"
+                    className={`px-4 sm:px-6 py-3 sm:py-4 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md text-sm sm:text-base font-medium ${
+                      currentMode === 'fasterbook'
+                        ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
+                        : 'bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700'
+                    }`}
                   >
                     Send
                   </button>
