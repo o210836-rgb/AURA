@@ -50,7 +50,7 @@ export class GeminiService {
 
   constructor() {
     this.model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-pro-latest", // Using latest model
+      model: "gemini-2.5-pro", // Using latest model
       systemInstruction: SYSTEM_PROMPT
     });
     
