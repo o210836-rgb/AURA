@@ -43,11 +43,11 @@ export class GeminiService {
       throw new Error('VITE_GEMINI_API_KEY is not defined in .env');
     }
     this.genAI = new GoogleGenerativeAI(API_KEY);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-pro' });
+    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
     this.fasterBookService = new FasterBookService();
   }
 
-  // --- NEW: Helper to get/fetch the cached menu ---
+  // --- MODIFIED: This function now re-throws the error ---
   /**
    * Fetches the food menu from FasterBook service and caches it.
    */
@@ -66,8 +66,9 @@ export class GeminiService {
       return menu;
     } catch (error) {
       console.error('Failed to fetch and cache menu:', error);
-      // Return an empty menu on failure to prevent crash
-      return { items: [], categories: [] };
+      // *** THIS IS THE FIX ***
+      // Re-throw the original error so the user can see it in the chat
+      throw error;
     }
   }
 
@@ -92,7 +93,6 @@ export class GeminiService {
 
   /**
    * Main entry point for processing a user's message.
-   * This is UPDATED to handle FasterBook mode detection.
    */
   async sendMessage(message: string, isFasterBookMode: boolean): Promise<string> {
     if (isFasterBookMode) {
@@ -182,7 +182,6 @@ export class GeminiService {
 
   /**
    * Executes the detected agentic action.
-   * This is UPDATED to be async and call the new async extractFoodParams.
    */
   public async executeAgenticAction(
     message: string,
@@ -217,13 +216,11 @@ export class GeminiService {
       // --- LEGACY ACTIONS ---
       case 'FOOD_BOOKING_REQUEST':
         console.log('Executing Legacy Food Request...');
-        // This remains sync and uses mock data
         const legacyFoodResult = bookFoodLegacy(message);
         return { type: 'food_booking', result: legacyFoodResult };
 
       case 'TICKET_BOOKING_REQUEST':
         console.log('Executing Legacy Ticket Request...');
-        // This remains sync and uses mock data
         const legacyTicketResult = bookTicketsLegacy(message);
         return { type: 'ticket_booking', result: legacyTicketResult };
 
@@ -235,13 +232,14 @@ export class GeminiService {
 
   /**
    * Extracts food booking parameters using AI, now with the REAL menu.
-   * This is the MOST IMPORTANT update.
    */
   private async extractFoodParams(message: string): Promise<any> {
     // --- STEP 1: Get the REAL menu ---
-    const menu = await this.getCachedFoodMenu();
+    const menu = await this.getCachedFoodMenu(); // This will now throw the real error if it fails
+    
+    // This check is now for a *successful* fetch that happens to be empty
     if (!menu || menu.items.length === 0) {
-      throw new Error("I'm sorry, I couldn't load the food menu from FasterBook right now. Please try again in a moment.");
+      throw new Error("I'm sorry, the food menu is currently empty. Please try again later.");
     }
     
     // Stringify only the essential parts for the prompt
