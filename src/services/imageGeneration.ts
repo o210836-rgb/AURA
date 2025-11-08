@@ -1,28 +1,29 @@
+// src/services/imageGeneration.ts
+
 import { HfInference } from '@huggingface/inference';
 
-export class ImageGenerationService {
-  private hf: HfInference;
+const HF_TOKEN = import.meta.env.VITE_HF_TOKEN;
+const hf = new HfInference(HF_TOKEN);
 
-  constructor() {
-    this.hf = new HfInference('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');
-  }
+const DEFAULT_MODEL = 'stabilityai/stable-diffusion-xl-base-1.0';
 
-  async generateImage(prompt: string): Promise<string> {
-    try {
-      const response = await this.hf.textToImage({
-        model: 'black-forest-labs/FLUX.1-dev',
-        inputs: prompt,
-      });
+// --- THIS IS THE FIX ---
+// Add the "export" keyword to this line:
+export async function generateImage(prompt: string): Promise<string> {
+  try {
+    const blob = await hf.textToImage({
+      model: DEFAULT_MODEL,
+      inputs: prompt,
+      parameters: {
+        negative_prompt: 'blurry, ugly, deformed',
+      },
+    });
 
-      // Convert blob to base64 data URL
-      const arrayBuffer = await response.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-      const dataUrl = `data:image/png;base64,${base64}`;
-      
-      return dataUrl;
-    } catch (error) {
-      console.error('Error generating image with Hugging Face:', error);
-      throw new Error('Failed to generate image. Please try again with a different prompt.');
-    }
+    // Convert blob to a data URL to be easily displayed
+    return URL.createObjectURL(blob);
+
+  } catch (error) {
+    console.error('Error generating image:', error);
+    throw new Error('Failed to generate image');
   }
 }
