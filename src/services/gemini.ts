@@ -126,9 +126,9 @@ export class GeminiService {
 
       if (this.uploadedFiles.length > 0) {
         prompt += '\n\nThe user has uploaded the following files. Use their content to answer the query:';
-        this.uploadedFiles.forEach(file => {
-          prompt += `\n\n--- FILE: ${file.name} ---\n${file.content.substring(0, 2000)}...`;
-        });
+      this.uploadedFiles.forEach(file => {
+        prompt += `\n\n--- FILE: ${file.name} ---\n${file.content.substring(0, 2000)}...`;
+      });
       }
 
       const result = await this.model.generateContent(prompt);
