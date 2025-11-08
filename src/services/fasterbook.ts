@@ -60,7 +60,7 @@ export class FasterBookService {
 
   /**
    * Fetches the available food menu from the FasterBook API.
-   * This is the new function to get real item data.
+   * This is the correct function that gemini.ts will call.
    */
   async getFoodMenu(): Promise<AvailableItemsResponse> {
     try {
@@ -87,7 +87,6 @@ export class FasterBookService {
 
   /**
    * Attempts to book a food order.
-   * This function is UPDATED to handle real server errors.
    */
   async bookFood(params: {
     itemId: string;
@@ -104,8 +103,6 @@ export class FasterBookService {
         body: JSON.stringify(params),
       });
 
-      // *** THIS IS THE CRITICAL CHANGE ***
-      // It now reads the error message from your server (e.g., "Ongole" error)
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to book food order.');
@@ -115,7 +112,6 @@ export class FasterBookService {
       return data;
     } catch (error) {
       console.error('Error in bookFood service:', error);
-      // Re-throw the specific error message from the server
       throw error;
     }
   }
