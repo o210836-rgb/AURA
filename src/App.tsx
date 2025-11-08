@@ -565,17 +565,17 @@ function App() {
                     </button>
                   </div>
 
-                  <textarea
+                <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                     placeholder={fasterbookAgentMode
                       ? "Agent Mode: Order food or book movies..."
                       : "Chat with A.U.R.A..."}
-                    className={`w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
+                    className={`w-full py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
                       fasterbookAgentMode
-                        ? 'border-2 border-orange-400 focus:ring-orange-500 pl-28' // Padded to clear the toggle
-                        : 'border border-sage-200/50 focus:ring-sage-300 pl-4' // Normal padding
+                        ? 'border-2 border-orange-400 focus:ring-orange-500 pl-28 pr-4 sm:pr-6'
+                        : 'border border-sage-200/50 focus:ring-sage-300 px-4 sm:px-6'
                     }`}
                     rows={1}
                   />
