@@ -47,7 +47,6 @@ export class GeminiService {
     this.fasterBookService = new FasterBookService();
   }
 
-  // --- MODIFIED: This function now re-throws the error ---
   /**
    * Fetches the food menu from FasterBook service and caches it.
    */
@@ -66,7 +65,6 @@ export class GeminiService {
       return menu;
     } catch (error) {
       console.error('Failed to fetch and cache menu:', error);
-      // *** THIS IS THE FIX ***
       // Re-throw the original error so the user can see it in the chat
       throw error;
     }
@@ -95,47 +93,50 @@ export class GeminiService {
    * Main entry point for processing a user's message.
    */
   async sendMessage(message: string, isFasterBookMode: boolean): Promise<string> {
-    if (isFasterBookMode) {
-      // --- FasterBook Mode Logic ---
-      const actionType = this.detectFasterBookActionType(message);
-
-      if (actionType === 'GENERAL_CHAT') {
-        // If intent is unclear, force a clarification
-        const clarificationPrompt = `
-          You are "FasterBook Agent", a specialized AI for booking food and movies.
-          The user said: "${message}".
-          This is not a clear command to 'order food', 'book movie', 'show menu', or 'show bookings'.
-          Respond by politely clarifying your ONLY purpose.
-          Example: "I am the FasterBook agent, ready to help you order food or book movie tickets. What would you like to do?"
-        `;
-        const result = await this.model.generateContent(clarificationPrompt);
-        return result.response.text();
-      }
-      return actionType; // Return the action string (e.g., "FASTERBOOK_FOOD_REQUEST")
-    }
-
-    // --- General A.U.R.A Mode Logic ---
-    const actionType = this.detectActionType(message);
-
-    if (actionType !== 'GENERAL_CHAT') {
-      return actionType; // e.g., "IMAGE_GENERATION"
-    }
-
-    let prompt = `You are A.U.R.A, a helpful assistant.
-    User's message: "${message}"`;
-
-    if (this.uploadedFiles.length > 0) {
-      prompt += '\n\nThe user has uploaded the following files. Use their content to answer the query:';
-      this.uploadedFiles.forEach(file => {
-        prompt += `\n\n--- FILE: ${file.name} ---\n${file.content.substring(0, 2000)}...`;
-      });
-    }
-
     try {
+      if (isFasterBookMode) {
+        // --- FasterBook Mode Logic ---
+        const actionType = this.detectFasterBookActionType(message);
+
+        if (actionType === 'GENERAL_CHAT') {
+          // If intent is unclear, force a clarification
+          const clarificationPrompt = `
+            You are "FasterBook Agent", a specialized AI for booking food and movies.
+            The user said: "${message}".
+            This is not a clear command to 'order food', 'book movie', 'show menu', or 'show bookings'.
+            Respond by politely clarifying your ONLY purpose.
+            Example: "I am the FasterBook agent, ready to help you order food or book movie tickets. What would you like to do?"
+          `;
+          // *** THIS IS NOW IN A TRY/CATCH ***
+          const result = await this.model.generateContent(clarificationPrompt);
+          return result.response.text();
+        }
+        return actionType; // Return the action string (e.g., "FASTERBOOK_FOOD_REQUEST")
+      }
+
+      // --- General A.U.R.A Mode Logic ---
+      const actionType = this.detectActionType(message);
+
+      if (actionType !== 'GENERAL_CHAT') {
+        return actionType; // e.g., "IMAGE_GENERATION"
+      }
+
+      let prompt = `You are A.U.R.A, a helpful assistant.
+      User's message: "${message}"`;
+
+      if (this.uploadedFiles.length > 0) {
+        prompt += '\n\nThe user has uploaded the following files. Use their content to answer the query:';
+        this.uploadedFiles.forEach(file => {
+          prompt += `\n\n--- FILE: ${file.name} ---\n${file.content.substring(0, 2000)}...`;
+        });
+      }
+
       const result = await this.model.generateContent(prompt);
       return result.response.text();
+
     } catch (error) {
       console.error('Error in sendMessage:', error);
+      // This is the error message you are seeing
       return 'I apologize, but I encountered an error while processing your request.';
     }
   }
