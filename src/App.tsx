@@ -1,6 +1,10 @@
+// src/App.tsx
+
 import React, { useState, useEffect } from 'react';
 import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, User, Network, ShoppingBag, ChevronDown, Brain } from 'lucide-react';
-import { GeminiService } from './services/gemini';
+// --- NEW: Import the custom error ---
+import { GeminiService, MissingDetailsError } from './services/gemini';
+// --- END NEW ---
 import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
 import { OrderDisplay } from './components/OrderDisplay';
@@ -10,13 +14,10 @@ import { TicketBookingResult } from './services/ticketBooking';
 import { FoodBookingResponse, MovieBookingResponse, BookingsResponse, AvailableItemsResponse } from './services/fasterbook';
 import { useUser, useClerk, SignInButton, UserButton } from '@clerk/clerk-react';
 import { clerkAuthService, ClerkUser } from './services/clerkAuth';
-// import { tasksService, TaskType } from './services/tasks'; // Removed as mock tasks are used
-// import { mockRestaurantApi, mockHotelApi, mockFlightApi, mockRideApi } from './services/mockApis'; // Removed
 import TaskCenter from './components/TaskCenter';
 import Markdown from './utils/markdown';
 import FilesView from './components/FilesView';
 import MemoryLogs from './components/MemoryLogs';
-// import { handleBookingWithTask } from './utils/bookingHelper'; // Removed as we simplify
 import LandingPage from './components/LandingPage';
 import ExternalServices from './components/ExternalServices';
 
@@ -27,7 +28,6 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
-  // Simplified order types
   orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
   orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
 }
@@ -40,18 +40,21 @@ interface Task {
   timestamp: Date;
 }
 
-// --- NEW: Type definition for our modes ---
 type AppMode = 'aura' | 'fasterbook';
 
+// --- NEW: Define the shape of our pending action state ---
+interface PendingAction {
+  originalMessage: string;
+  action: string;
+}
+// --- END NEW ---
+
 function App() {
-  // -----------------------------------------------------------
-  // 1. ALL HOOKS MUST BE CALLED UNCONDITIONALLY AT THE TOP LEVEL
-  // -----------------------------------------------------------
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'assistant',
-      content: 'Hello! I\'m A.U.R.A, your Universal Reasoning Agent. I can help you think through complex problems, manage tasks, and understand the world around you. How can I assist you today?',
+      content: 'Hello! I\'m A.U.R.A, your Universal Reasoning Agent. How can I assist you today?',
       timestamp: new Date()
     }
   ]);
@@ -72,22 +75,21 @@ function App() {
   const [isUploadingFile, setIsUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   
-  // Clerk Hooks
   const { user, isLoaded, isSignedIn } = useUser();
-  const { signOut } = useClerk(); // Retained but unused
+  const { signOut } = useClerk(); 
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
   
-  // --- NEW: State for mode dropdown ---
   const [currentMode, setCurrentMode] = useState<AppMode>('aura');
   const [showModeDropdown, setShowModeDropdown] = useState(false);
+
+  // --- NEW: State for conversational context ---
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // --- END NEW ---
   
-  // Initialize Gemini service (Unconditional)
   const [geminiService] = useState(() => new GeminiService()); 
 
-  // Floating particles animation hook
   const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, size: number, speed: number}>>([]);
 
-  // Effects (Unconditional)
   useEffect(() => {
     const newParticles = Array.from({length: 12}, (_, i) => ({
       id: i,
@@ -109,9 +111,6 @@ function App() {
     loadUser();
   }, [user, isLoaded]);
 
-  // -----------------------------------------------------------
-  // 2. CONDITIONAL RENDERING LOGIC (Placed after all Hooks)
-  // -----------------------------------------------------------
   
   if (!isLoaded) {
     return (
@@ -128,11 +127,6 @@ function App() {
     return <LandingPage />;
   }
 
-  // -----------------------------------------------------------
-  // 3. REST OF THE APP LOGIC (Functions and main return)
-  // -----------------------------------------------------------
-
-  // --- NEW: Handler for changing the mode ---
   const handleModeChange = (newMode: AppMode) => {
     if (newMode === currentMode) {
       setShowModeDropdown(false);
@@ -141,8 +135,10 @@ function App() {
 
     setCurrentMode(newMode);
     setShowModeDropdown(false);
+    // --- NEW: Clear pending action on mode switch ---
+    setPendingAction(null);
+    // --- END NEW ---
 
-    // Send a system message to confirm the change
     const modeName = newMode === 'aura' ? 'General A.U.R.A Mode' : 'FasterBook Agent Mode';
     const systemMessage: Message = {
       id: Date.now().toString(),
@@ -190,30 +186,51 @@ function App() {
     }
   };
 
+  // --- MODIFIED: This function is now context-aware ---
   const handleSendMessage = async () => {
     if (!input.trim()) return;
+    
+    const messageContent = input;
     const newMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
-      content: input,
+      content: messageContent,
       timestamp: new Date()
     };
     setMessages(prev => [...prev, newMessage]);
-    const messageToSend = input;
     setInput('');
     setIsTyping(true);
 
+    let messageToSend = messageContent;
+    let actionToExecute = '';
+    let isFollowUp = false;
+
+    // --- NEW: Check if this is an answer to a pending question ---
+    if (pendingAction && currentMode === 'fasterbook') {
+      messageToSend = pendingAction.originalMessage + " " + messageContent; // e.g., "book 2 biryani in ongole"
+      actionToExecute = pendingAction.action;
+      isFollowUp = true;
+      setPendingAction(null); // Clear the pending action
+      console.log("Handling follow-up message. Combined:", messageToSend);
+    }
+    // --- END NEW ---
+
     try {
-      // --- MODIFIED: Use the new currentMode state ---
-      const isFasterBook = currentMode === 'fasterbook';
-      const aiResponse = await geminiService.sendMessage(messageToSend, isFasterBook);
-      // --- END MODIFICATION ---
+      let aiResponse: string;
+
+      if (isFollowUp) {
+        aiResponse = actionToExecute; // We already know the action
+      } else {
+        // This is a new request
+        const isFasterBook = currentMode === 'fasterbook';
+        aiResponse = await geminiService.sendMessage(messageToSend, isFasterBook);
+      }
 
       // Handle Image Generation
       if (aiResponse.startsWith('IMAGE_GENERATION:')) {
-        const imagePrompt = aiResponse.replace('IMAGE_GENERATION:', '');
         setIsGeneratingImage(true);
         try {
+          const imagePrompt = aiResponse.replace('IMAGE_GENERATION:', '');
           const imageUrl = await geminiService.generateImage(imagePrompt);
           const imageResponse: Message = {
             id: (Date.now() + 1).toString(),
@@ -225,7 +242,13 @@ function App() {
           };
           setMessages(prev => [...prev, imageResponse]);
         } catch (error) {
-          // ... (error handling)
+          const errorResponse: Message = {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: error instanceof Error ? error.message : 'Failed to generate image.',
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, errorResponse]);
         } finally {
           setIsGeneratingImage(false);
         }
@@ -233,18 +256,15 @@ function App() {
       
       // Handle Agentic Actions (FasterBook, Legacy, etc.)
       else if (aiResponse.endsWith('_REQUEST')) {
-        setIsTyping(true);
+        console.log(`Executing agentic action: ${aiResponse}`);
         try {
+          // We use messageToSend (which might be the combined message)
           const agenticAction = await geminiService.executeAgenticAction(messageToSend, aiResponse);
           
           if (agenticAction) {
             let orderMessage: Message;
             // Handle all FasterBook responses
-            if (agenticAction.type === 'fasterbook_food' ||
-                agenticAction.type === 'fasterbook_movie' ||
-                agenticAction.type === 'fasterbook_bookings' ||
-                agenticAction.type === 'fasterbook_menu') {
-              
+            if (agenticAction.type.startsWith('fasterbook_')) {
               let content = 'I\'ve processed your FasterBook request:';
               if (agenticAction.type === 'fasterbook_menu') content = 'Here\'s the FasterBook menu:';
               if (agenticAction.type === 'fasterbook_bookings') content = 'Here are your FasterBook bookings:';
@@ -254,37 +274,44 @@ function App() {
                 type: 'assistant',
                 content: content,
                 timestamp: new Date(),
-                orderType: agenticAction.type,
+                orderType: agenticAction.type as any,
                 orderData: agenticAction.result
               };
             } 
             // Handle legacy responses
-            else if (agenticAction.type === 'food_booking' || agenticAction.type === 'ticket_booking') {
+            else {
               orderMessage = {
                 id: (Date.now() + 1).toString(),
                 type: 'assistant',
                 content: `I've processed your legacy ${agenticAction.type.split('_')[0]} booking:`,
                 timestamp: new Date(),
-                orderType: agenticAction.type,
+                orderType: agenticAction.type as any,
                 orderData: agenticAction.result
-              };
-            } else {
-              // Fallback for any other action type
-              orderMessage = {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: 'Your request has been processed.',
-                timestamp: new Date()
               };
             }
             setMessages(prev => [...prev, orderMessage]);
           }
         } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+          console.error('Error in executeAgenticAction:', error);
+          let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
+
+          // --- NEW: Check for MissingDetailsError to set pending state ---
+          if (error instanceof MissingDetailsError) {
+            setPendingAction({
+              originalMessage: messageToSend, // Save the original (or combined) message
+              action: aiResponse
+            });
+            console.log("Set pending action for missing details.");
+          } else {
+            // It's a real error, clear any pending action
+            setPendingAction(null);
+          }
+          // --- END NEW ---
+
           const errorResponse: Message = {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: errorMessage,
+            content: errorMessage, // This will be the question (e.g., "Where to deliver?")
             timestamp: new Date()
           };
           setMessages(prev => [...prev, errorResponse]);
@@ -295,6 +322,9 @@ function App() {
       
       // Handle General LLM Response
       else {
+        // --- NEW: Clear pending action on general chat response ---
+        setPendingAction(null);
+        // --- END NEW ---
         const response: Message = {
           id: (Date.now() + 1).toString(),
           type: 'assistant',
@@ -304,10 +334,10 @@ function App() {
         setMessages(prev => [...prev, response]);
       }
       
-      // Task generation (simplified)
-      // ... (This logic can remain)
-
     } catch (error) {
+      console.error('Error in handleSendMessage:', error);
+      // This is the outer catch block
+      setPendingAction(null); // Clear pending action on any major failure
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
@@ -375,7 +405,6 @@ function App() {
           </div>
         </div>
         <nav className="p-4 space-y-2">
-          {/* ... (Sidebar buttons: Conversations, Task Center, etc.) ... */}
            <button 
             onClick={() => setCurrentView('chat')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'chat' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
@@ -426,7 +455,6 @@ function App() {
         {/* Header */}
         <header className="bg-white/30 backdrop-blur-md border-b border-sage-200/30 px-6 py-4">
           <div className="flex items-center justify-between">
-            {/* ... (Header content: sidebar toggle, AURA title) ... */}
             <div className="flex items-center space-x-4">
               <button 
                 onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -448,7 +476,6 @@ function App() {
                 </div>
               </div>
             </div>
-            {/* ... (Clerk User Button / Sign In) ... */}
             <div className="flex items-center space-x-3">
               {isLoaded && user ? (
                 <div className="flex items-center space-x-3">
@@ -483,7 +510,6 @@ function App() {
         {/* Chat View */}
         {currentView === 'chat' && (
           <div className="flex flex-col h-[calc(100vh-5rem)]">
-            {/* ... (File Upload Panel logic) ... */}
             {showFileUpload && (
               <div className="p-6 bg-white/20 backdrop-blur-sm border-b border-sage-200/30 animate-slideIn">
                 <FileUpload
@@ -495,7 +521,7 @@ function App() {
             )}
             
             {/* Messages */}
-            <div className={`flex-1 overflow-y-auto p-6 space-y-6 ${showFileUpload ? 'h-[calc(1ch-20rem)]' : ''}`}> {/* Adjusted height calc */ }
+            <div className={`flex-1 overflow-y-auto p-6 space-y-6 ${showFileUpload ? 'h-[calc(1ch-20rem)]' : ''}`}>
               {messages.map((message) => (
                 <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-slideIn`}>
                   <div className={`max-w-2xl ${message.type === 'user' 
@@ -526,7 +552,6 @@ function App() {
               
               {(isTyping || isGeneratingImage) && (
                 <div className="flex justify-start animate-slideIn">
-                  {/* ... (Typing indicator) ... */}
                   <div className="bg-white/60 backdrop-blur-sm rounded-3xl rounded-bl-lg px-6 py-4 border border-sage-200/30">
                     <div className="flex items-center space-x-3">
                       <div className="flex space-x-2">
@@ -543,9 +568,8 @@ function App() {
               )}
             </div>
 
-            {/* --- NEW INPUT AREA with Dropdown --- */}
+            {/* Input Area */}
             <div className="p-6 bg-white/20 backdrop-blur-sm border-t border-sage-200/30">
-              {/* Upload Error */}
               {uploadError && (
                 <div className="mb-4 flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
                   <span className="text-sm">{uploadError}</span>
@@ -570,7 +594,6 @@ function App() {
                   <ChevronDown className={`w-4 h-4 transition-transform ${showModeDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
-                {/* Dropdown Menu */}
                 {showModeDropdown && (
                   <div className="absolute bottom-full mb-2 w-72 bg-white rounded-xl shadow-2xl border border-sage-200/50 p-2 z-10 animate-bloom">
                     <button
@@ -600,15 +623,25 @@ function App() {
               {/* Main Input Bar */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
                 
-                {/* Textarea (NOW CLEANED) */}
                 <div className="flex-1 relative">
+                  {/* --- NEW: Show pending action hint --- */}
+                  {pendingAction && (
+                    <div className="absolute -top-8 left-2 text-xs text-orange-700 bg-orange-100/80 px-2 py-1 rounded-md animate-pulse">
+                      Waiting for details... (e.g., address, seats)
+                    </div>
+                  )}
+                  {/* --- END NEW --- */}
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    placeholder={currentMode === 'fasterbook'
-                      ? "Agent Mode: Order food or book movies..."
-                      : "Chat with A.U.R.A..."}
+                    // --- MODIFIED: Placeholder updates when waiting for answer ---
+                    placeholder={pendingAction
+                      ? 'Please provide the missing details...'
+                      : currentMode === 'fasterbook'
+                        ? "Agent Mode: Order food or book movies..."
+                        : "Chat with A.U.R.A..."}
+                    // --- END MODIFICATION ---
                     className={`w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
                       currentMode === 'fasterbook'
                         ? 'border-2 border-orange-400 focus:ring-orange-500'
@@ -617,14 +650,13 @@ function App() {
                     rows={1}
                   />
 
-                  {geminiService.getUploadedFiles().length > 0 && currentMode === 'aura' && (
+                  {geminiService.getUploadedFiles().length > 0 && currentMode === 'aura' && !pendingAction && (
                     <div className="absolute -top-8 left-2 text-xs text-sage-600 bg-sage-100/80 px-2 py-1 rounded-md">
                       📎 {geminiService.getUploadedFiles().length} file(s) attached
                     </div>
                   )}
                 </div>
 
-                {/* Hidden file input */}
                 <input
                   type="file"
                   accept="*"
@@ -634,7 +666,6 @@ function App() {
                   disabled={isUploadingFile || currentMode === 'fasterbook'}
                 />
 
-                {/* Action Buttons */}
                 <div className="flex items-center space-x-2 sm:space-x-3">
                   <button
                     onClick={() => document.getElementById('quick-file-upload')?.click()}
@@ -655,7 +686,7 @@ function App() {
                     onClick={handleSendMessage}
                     disabled={!input.trim() || isTyping || isGeneratingImage}
                     className={`px-4 sm:px-6 py-3 sm:py-4 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md text-sm sm:text-base font-medium ${
-                      currentMode === 'fasterbook'
+                      currentMode === 'fasterbook' || pendingAction
                         ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
                         : 'bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700'
                     }`}
@@ -668,14 +699,13 @@ function App() {
           </div>
         )}
 
-        {/* Other Views (Tasks, Files, Memory, Services) */}
+        {/* Other Views */}
         {currentView === 'tasks' && <TaskCenter />}
         {currentView === 'files' && <FilesView files={geminiService.getUploadedFiles()} onRemoveFile={handleRemoveFile} />}
         {currentView === 'memory' && <MemoryLogs messages={messages} />}
         {currentView === 'services' && <ExternalServices />}
       </div>
 
-      {/* Sidebar Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
