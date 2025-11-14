@@ -675,13 +675,13 @@ function App() {
                   >
                     {isUploadingFile ? <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </button>
-                  <button
+                  {/* <button
                     onClick={toggleVoice}
                     className={`p-3 sm:p-4 rounded-xl transition-all duration-300 ${isListening ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-sage-100 text-sage-600 hover:bg-sage-200'}`}
                   >
                     {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
                     {isListening && <Waves className="w-3 h-3 sm:w-4 sm:h-4 absolute animate-ping" />}
-                  </button>
+                  </button> */}
                   <button
                     onClick={handleSendMessage}
                     disabled={!input.trim() || isTyping || isGeneratingImage}
