@@ -419,13 +419,13 @@ function App() {
             <Zap className="w-5 h-5" />
             <span>Task Center</span>
           </button>
-          <button
+          {/* <button
             onClick={() => setShowFileUpload(!showFileUpload)}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${showFileUpload ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
           >
             <Upload className="w-5 h-5" />
             <span>Upload Files</span>
-          </button>
+          </button> */}
           <button
             onClick={() => setCurrentView('memory')}
             className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'memory' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
