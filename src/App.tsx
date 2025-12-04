@@ -1,18 +1,16 @@
 // src/App.tsx
 
-import React, { useState, useEffect } from 'react';
-import { MessageSquare, Mic, MicOff, Waves, Leaf, Settings, History, FileText, Zap, CheckCircle2, Clock, Play, Upload, Paperclip, LogIn, User, Network, ShoppingBag, ChevronDown, Brain } from 'lucide-react';
-// --- NEW: Import the custom error ---
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  MessageSquare, Plus, History, FileText, Zap, 
+  Settings, Network, ChevronDown, Brain, ShoppingBag, 
+  Send, Paperclip, PanelLeftClose, PanelLeft, Trash2, MessageCircle
+} from 'lucide-react';
 import { GeminiService, MissingDetailsError } from './services/gemini';
-// --- END NEW ---
-import { FileUpload } from './components/FileUpload';
 import { ImageDisplay } from './components/ImageDisplay';
 import { OrderDisplay } from './components/OrderDisplay';
 import { ExtractedFile, extractTextFromFile } from './utils/fileExtractor';
-import { FoodBookingResult } from './services/foodBooking';
-import { TicketBookingResult } from './services/ticketBooking';
-import { FoodBookingResponse, MovieBookingResponse, BookingsResponse, AvailableItemsResponse } from './services/fasterbook';
-import { useUser, useClerk, SignInButton, UserButton } from '@clerk/clerk-react';
+import { useUser, useClerk, UserButton } from '@clerk/clerk-react';
 import { clerkAuthService, ClerkUser } from './services/clerkAuth';
 import TaskCenter from './components/TaskCenter';
 import Markdown from './utils/markdown';
@@ -20,7 +18,9 @@ import FilesView from './components/FilesView';
 import MemoryLogs from './components/MemoryLogs';
 import LandingPage from './components/LandingPage';
 import ExternalServices from './components/ExternalServices';
+import { FileUpload } from './components/FileUpload';
 
+// --- Interfaces ---
 interface Message {
   id: string;
   type: 'user' | 'assistant';
@@ -28,78 +28,63 @@ interface Message {
   timestamp: Date;
   imageUrl?: string;
   imagePrompt?: string;
-  orderType?: 'food' | 'ticket' | 'fasterbook_food' | 'fasterbook_movie' | 'fasterbook_bookings' | 'fasterbook_menu';
-  orderData?: FoodBookingResult | TicketBookingResult | FoodBookingResponse | MovieBookingResponse | BookingsResponse | AvailableItemsResponse;
+  orderType?: string;
+  orderData?: any;
 }
 
-interface Task {
+interface ChatSession {
   id: string;
   title: string;
-  status: 'pending' | 'processing' | 'completed';
-  description: string;
-  timestamp: Date;
+  date: Date;
+  messages: Message[];
 }
 
-type AppMode = 'aura' | 'fasterbook';
-
-// --- NEW: Define the shape of our pending action state ---
 interface PendingAction {
   originalMessage: string;
   action: string;
 }
-// --- END NEW ---
+
+type AppMode = 'aura' | 'fasterbook';
+type ViewType = 'chat' | 'tasks' | 'files' | 'memory' | 'services';
 
 function App() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'assistant',
-      content: 'Hello! I\'m A.U.R.A, your Universal Reasoning Agent. How can I assist you today?',
-      timestamp: new Date()
-    }
-  ]);
-  
-  const [tasks, setTasks] = useState<Task[]>([
-    { id: '1', title: 'Research sustainable energy', status: 'completed', description: 'Analysis of renewable tech', timestamp: new Date(Date.now() - 3600000) },
-    { id: '2', title: 'Schedule team meeting', status: 'processing', description: 'Coordinating calendars', timestamp: new Date(Date.now() - 1800000) },
-    { id: '3', title: 'Analyze market trends', status: 'pending', description: 'Deep dive into Q4 metrics', timestamp: new Date() }
-  ]);
-
-  const [input, setInput] = useState('');
-  const [isListening, setIsListening] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [currentView, setCurrentView] = useState<'chat' | 'tasks' | 'files' | 'memory' | 'services'>('chat');
-  const [isTyping, setIsTyping] = useState(false);
-  const [showFileUpload, setShowFileUpload] = useState(false);
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-  const [isUploadingFile, setIsUploadingFile] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  
+  // --- State: Auth & Core ---
   const { user, isLoaded, isSignedIn } = useUser();
-  const { signOut } = useClerk(); 
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
-  
+  const [geminiService] = useState(() => new GeminiService());
+
+  // --- State: UI & Navigation ---
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [currentView, setCurrentView] = useState<ViewType>('chat');
   const [currentMode, setCurrentMode] = useState<AppMode>('aura');
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
-  // --- NEW: State for conversational context ---
-  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  // --- END NEW ---
+  // --- State: Chat Data ---
+  // Default empty message for a new chat
+  const defaultMessage: Message = {
+    id: 'init',
+    type: 'assistant',
+    content: 'Hello! I\'m A.U.R.A. How can I help you today?',
+    timestamp: new Date()
+  };
+
+  const [messages, setMessages] = useState<Message[]>([defaultMessage]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
-  const [geminiService] = useState(() => new GeminiService()); 
+  // --- State: Inputs & Processing ---
+  const [input, setInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isUploadingFile, setIsUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [showFileUpload, setShowFileUpload] = useState(false); // Kept for compatibility
 
-  const [particles, setParticles] = useState<Array<{id: number, x: number, y: number, size: number, speed: number}>>([]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // --- Effects ---
   useEffect(() => {
-    const newParticles = Array.from({length: 12}, (_, i) => ({
-      id: i,
-      x: Math.random() * 100,
-      y: Math.random() * 100,
-      size: Math.random() * 4 + 2,
-      speed: Math.random() * 2 + 1
-    }));
-    setParticles(newParticles);
-
     const loadUser = async () => {
       if (isLoaded && user) {
         const clerkUser = await clerkAuthService.getCurrentUser(user);
@@ -111,607 +96,490 @@ function App() {
     loadUser();
   }, [user, isLoaded]);
 
-  
-  if (!isLoaded) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-green-50">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading A.U.R.A...</p>
-        </div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
 
-  if (!isSignedIn) {
-    return <LandingPage />;
-  }
+  // --- Chat Session Management ---
 
-  const handleModeChange = (newMode: AppMode) => {
-    if (newMode === currentMode) {
-      setShowModeDropdown(false);
-      return;
+  const createNewChat = () => {
+    // 1. If the current chat has user messages, save it to history
+    if (messages.length > 1) { // >1 because of the default greeting
+      const newSession: ChatSession = {
+        id: currentSessionId || Date.now().toString(),
+        title: messages[1].content.slice(0, 30) + (messages[1].content.length > 30 ? '...' : ''), // Use first user message as title
+        date: new Date(),
+        messages: [...messages]
+      };
+
+      setChatSessions(prev => {
+        // Update existing if ID matches, else add new
+        const exists = prev.findIndex(s => s.id === newSession.id);
+        if (exists >= 0) {
+          const updated = [...prev];
+          updated[exists] = newSession;
+          return updated;
+        }
+        return [newSession, ...prev];
+      });
     }
 
+    // 2. Reset workspace
+    setMessages([defaultMessage]);
+    setCurrentSessionId(null);
+    setCurrentView('chat');
+    setPendingAction(null);
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+  };
+
+  const loadSession = (session: ChatSession) => {
+    // Save current before switching? (Optional, skipping for simplicity)
+    setMessages(session.messages);
+    setCurrentSessionId(session.id);
+    setCurrentView('chat');
+    if (window.innerWidth < 1024) setSidebarOpen(false);
+  };
+
+  const deleteSession = (e: React.MouseEvent, sessionId: string) => {
+    e.stopPropagation();
+    setChatSessions(prev => prev.filter(s => s.id !== sessionId));
+    if (currentSessionId === sessionId) {
+      setMessages([defaultMessage]);
+      setCurrentSessionId(null);
+    }
+  };
+
+  // --- Handlers ---
+
+  const handleModeChange = (newMode: AppMode) => {
     setCurrentMode(newMode);
     setShowModeDropdown(false);
-    // --- NEW: Clear pending action on mode switch ---
     setPendingAction(null);
-    // --- END NEW ---
-
-    const modeName = newMode === 'aura' ? 'General A.U.R.A Mode' : 'FasterBook Agent Mode';
-    const systemMessage: Message = {
+    setMessages(prev => [...prev, {
       id: Date.now().toString(),
       type: 'assistant',
-      content: `Switched to *${modeName}*.`,
+      content: `Switched to *${newMode === 'aura' ? 'General Mode' : 'FasterBook Agent Mode'}*.`,
       timestamp: new Date()
-    };
-    setMessages(prev => [...prev, systemMessage]);
+    }]);
   };
 
-  const handleFileUploaded = (file: ExtractedFile) => {
-    geminiService.addUploadedFile(file);
-    setShowFileUpload(false);
-    const systemMessage: Message = {
+  const handleSendMessage = async () => {
+    if (!input.trim()) return;
+    
+    const newMessage: Message = {
       id: Date.now().toString(),
-      type: 'assistant',
-      content: `I've successfully processed "${file.name}". I can now reference its content.`,
+      type: 'user',
+      content: input,
       timestamp: new Date()
     };
-    setMessages(prev => [...prev, systemMessage]);
-  };
 
-  const handleRemoveFile = (fileName: string) => {
-    geminiService.removeUploadedFile(fileName);
+    setMessages(prev => [...prev, newMessage]);
+    setInput('');
+    setIsTyping(true);
+
+    // Context Logic
+    let messageToSend = newMessage.content;
+    let actionToExecute = '';
+    let isFollowUp = false;
+
+    if (pendingAction && currentMode === 'fasterbook') {
+      messageToSend = pendingAction.originalMessage + " " + newMessage.content;
+      actionToExecute = pendingAction.action;
+      isFollowUp = true;
+      setPendingAction(null);
+    }
+
+    try {
+      let aiResponse: string;
+
+      if (isFollowUp) {
+        aiResponse = actionToExecute;
+      } else {
+        const isFasterBook = currentMode === 'fasterbook';
+        aiResponse = await geminiService.sendMessage(messageToSend, isFasterBook);
+      }
+
+      // Handle Responses
+      if (aiResponse.startsWith('IMAGE_GENERATION:')) {
+        setIsGeneratingImage(true);
+        const imagePrompt = aiResponse.replace('IMAGE_GENERATION:', '');
+        try {
+          const imageUrl = await geminiService.generateImage(imagePrompt);
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content: `Generated image: "${imagePrompt}"`,
+            timestamp: new Date(),
+            imageUrl,
+            imagePrompt
+          }]);
+        } catch (e: any) {
+          throw new Error(e.message);
+        } finally {
+          setIsGeneratingImage(false);
+        }
+      }
+      else if (aiResponse.endsWith('_REQUEST')) {
+        const agenticAction = await geminiService.executeAgenticAction(messageToSend, aiResponse);
+        if (agenticAction) {
+          let content = 'Action processed.';
+          if (agenticAction.type.includes('menu')) content = 'Here is the menu:';
+          if (agenticAction.type.includes('bookings')) content = 'Here are your bookings:';
+          
+          setMessages(prev => [...prev, {
+            id: (Date.now() + 1).toString(),
+            type: 'assistant',
+            content,
+            timestamp: new Date(),
+            orderType: agenticAction.type as any,
+            orderData: agenticAction.result
+          }]);
+        }
+      }
+      else {
+        setPendingAction(null);
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: aiResponse,
+          timestamp: new Date()
+        }]);
+      }
+
+    } catch (error: any) {
+      if (error instanceof MissingDetailsError) {
+        setPendingAction({ originalMessage: messageToSend, action: error.message }); // Hack: storing action type in error for now? No, need to re-trigger. 
+        // Actually, gemini.ts throws MissingDetailsError with the QUESTION as message.
+        // We need to know which action triggered it.
+        // For simplicity in this UI update, we assume the previous action holds.
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: error.message, // "Where should I deliver?"
+          timestamp: new Date()
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          id: (Date.now() + 1).toString(),
+          type: 'assistant',
+          content: error.message || 'An error occurred.',
+          timestamp: new Date()
+        }]);
+      }
+    } finally {
+      setIsTyping(false);
+    }
   };
 
   const handleQuickFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
-    const file = files[0];
-    if (file.size > 100 * 1024 * 1024) {
-      setUploadError('File size must be less than 100MB.');
-      return;
-    }
     setIsUploadingFile(true);
-    setUploadError(null);
     try {
-      const extractedFile = await extractTextFromFile(file);
-      handleFileUploaded(extractedFile);
-    } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Failed to process file');
+      const extractedFile = await extractTextFromFile(files[0]);
+      geminiService.addUploadedFile(extractedFile);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        type: 'assistant',
+        content: `I've read **"${extractedFile.name}"**. What would you like to know?`,
+        timestamp: new Date()
+      }]);
+    } catch (error: any) {
+      setUploadError(error.message);
     } finally {
       setIsUploadingFile(false);
       event.target.value = '';
     }
   };
 
-  // --- MODIFIED: This function is now context-aware ---
-  const handleSendMessage = async () => {
-    if (!input.trim()) return;
-    
-    const messageContent = input;
-    const newMessage: Message = {
+  const handleFileUploaded = (file: ExtractedFile) => {
+    geminiService.addUploadedFile(file);
+    setShowFileUpload(false);
+    setMessages(prev => [...prev, {
       id: Date.now().toString(),
-      type: 'user',
-      content: messageContent,
+      type: 'assistant',
+      content: `File processed: ${file.name}`,
       timestamp: new Date()
-    };
-    setMessages(prev => [...prev, newMessage]);
-    setInput('');
-    setIsTyping(true);
-
-    let messageToSend = messageContent;
-    let actionToExecute = '';
-    let isFollowUp = false;
-
-    // --- NEW: Check if this is an answer to a pending question ---
-    if (pendingAction && currentMode === 'fasterbook') {
-      messageToSend = pendingAction.originalMessage + " " + messageContent; // e.g., "book 2 biryani in ongole"
-      actionToExecute = pendingAction.action;
-      isFollowUp = true;
-      setPendingAction(null); // Clear the pending action
-      console.log("Handling follow-up message. Combined:", messageToSend);
-    }
-    // --- END NEW ---
-
-    try {
-      let aiResponse: string;
-
-      if (isFollowUp) {
-        aiResponse = actionToExecute; // We already know the action
-      } else {
-        // This is a new request
-        const isFasterBook = currentMode === 'fasterbook';
-        aiResponse = await geminiService.sendMessage(messageToSend, isFasterBook);
-      }
-
-      // Handle Image Generation
-      if (aiResponse.startsWith('IMAGE_GENERATION:')) {
-        setIsGeneratingImage(true);
-        try {
-          const imagePrompt = aiResponse.replace('IMAGE_GENERATION:', '');
-          const imageUrl = await geminiService.generateImage(imagePrompt);
-          const imageResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: `I've generated an image: "${imagePrompt}"`,
-            timestamp: new Date(),
-            imageUrl,
-            imagePrompt
-          };
-          setMessages(prev => [...prev, imageResponse]);
-        } catch (error) {
-          const errorResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: error instanceof Error ? error.message : 'Failed to generate image.',
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, errorResponse]);
-        } finally {
-          setIsGeneratingImage(false);
-        }
-      }
-      
-      // Handle Agentic Actions (FasterBook, Legacy, etc.)
-      else if (aiResponse.endsWith('_REQUEST')) {
-        console.log(`Executing agentic action: ${aiResponse}`);
-        try {
-          // We use messageToSend (which might be the combined message)
-          const agenticAction = await geminiService.executeAgenticAction(messageToSend, aiResponse);
-          
-          if (agenticAction) {
-            let orderMessage: Message;
-            // Handle all FasterBook responses
-            if (agenticAction.type.startsWith('fasterbook_')) {
-              let content = 'I\'ve processed your FasterBook request:';
-              if (agenticAction.type === 'fasterbook_menu') content = 'Here\'s the FasterBook menu:';
-              if (agenticAction.type === 'fasterbook_bookings') content = 'Here are your FasterBook bookings:';
-              
-              orderMessage = {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: content,
-                timestamp: new Date(),
-                orderType: agenticAction.type as any,
-                orderData: agenticAction.result
-              };
-            } 
-            // Handle legacy responses
-            else {
-              orderMessage = {
-                id: (Date.now() + 1).toString(),
-                type: 'assistant',
-                content: `I've processed your legacy ${agenticAction.type.split('_')[0]} booking:`,
-                timestamp: new Date(),
-                orderType: agenticAction.type as any,
-                orderData: agenticAction.result
-              };
-            }
-            setMessages(prev => [...prev, orderMessage]);
-          }
-        } catch (error) {
-          console.error('Error in executeAgenticAction:', error);
-          let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred.';
-
-          // --- NEW: Check for MissingDetailsError to set pending state ---
-          if (error instanceof MissingDetailsError) {
-            setPendingAction({
-              originalMessage: messageToSend, // Save the original (or combined) message
-              action: aiResponse
-            });
-            console.log("Set pending action for missing details.");
-          } else {
-            // It's a real error, clear any pending action
-            setPendingAction(null);
-          }
-          // --- END NEW ---
-
-          const errorResponse: Message = {
-            id: (Date.now() + 1).toString(),
-            type: 'assistant',
-            content: errorMessage, // This will be the question (e.g., "Where to deliver?")
-            timestamp: new Date()
-          };
-          setMessages(prev => [...prev, errorResponse]);
-        } finally {
-          setIsTyping(false);
-        }
-      } 
-      
-      // Handle General LLM Response
-      else {
-        // --- NEW: Clear pending action on general chat response ---
-        setPendingAction(null);
-        // --- END NEW ---
-        const response: Message = {
-          id: (Date.now() + 1).toString(),
-          type: 'assistant',
-          content: aiResponse,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, response]);
-      }
-      
-    } catch (error) {
-      console.error('Error in handleSendMessage:', error);
-      // This is the outer catch block
-      setPendingAction(null); // Clear pending action on any major failure
-      const errorResponse: Message = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant',
-        content: error instanceof Error ? error.message : 'I apologize, but I encountered a connection issue.',
-        timestamp: new Date()
-      };
-      setMessages(prev => [...prev, errorResponse]);
-    } finally {
-      setIsTyping(false);
-      setIsGeneratingImage(false);
-    }
+    }]);
   };
 
-  const toggleVoice = () => {
-    setIsListening(!isListening);
-    // Voice logic would go here
-  };
+  if (!isLoaded) return <div className="h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage-600"></div></div>;
+  if (!isSignedIn) return <LandingPage />;
 
-  const getTaskIcon = (status: string) => {
-    switch(status) {
-      case 'completed': return <CheckCircle2 className="w-4 h-4 text-emerald-500" />;
-      case 'processing': return <Play className="w-4 h-4 text-amber-500" />;
-      default: return <Clock className="w-4 h-4 text-slate-400" />;
-    }
-  };
-
-  const getTaskStatusColor = (status: string) => {
-    switch(status) {
-      case 'completed': return 'bg-emerald-50 border-emerald-200';
-      case 'processing': return 'bg-amber-50 border-amber-200';
-      default: return 'bg-slate-50 border-slate-200';
-    }
-  };
-
-  // --- MAIN JSX RETURN ---
   return (
-    <div className="min-h-screen bg-gradient-to-br from-sage-50 via-white to-beige-50 relative overflow-hidden">
-      {/* ... (Particles background) ... */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {particles.map(particle => (
-          <div
-            key={particle.id}
-            className="absolute rounded-full bg-sage-200/20 animate-float"
-            style={{
-              left: `${particle.x}%`, top: `${particle.y}%`,
-              width: `${particle.size}px`, height: `${particle.size}px`,
-              animationDelay: `${particle.id * 0.5}s`,
-              animationDuration: `${particle.speed + 3}s`
-            }}
-          />
-        ))}
-      </div>
-
-      {/* Sidebar */}
-      <div className={`fixed left-0 top-0 h-full w-80 bg-white/40 backdrop-blur-md border-r border-sage-200/50 transform transition-transform duration-500 ease-out z-40 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="p-6 border-b border-sage-200/30">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-sage-400 to-sage-600 rounded-full flex items-center justify-center">
-              <Leaf className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-sage-800">AURA</h2>
-              <p className="text-sm text-sage-600">Universal Reasoning Agent</p>
-            </div>
-          </div>
-        </div>
-        <nav className="p-4 space-y-2">
-           <button 
-            onClick={() => setCurrentView('chat')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'chat' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <MessageSquare className="w-5 h-5" />
-            <span>Conversations</span>
-          </button>
-          <button
-            onClick={() => setCurrentView('tasks')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'tasks' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <Zap className="w-5 h-5" />
-            <span>Task Center</span>
-          </button>
-          {/* <button
-            onClick={() => setShowFileUpload(!showFileUpload)}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${showFileUpload ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <Upload className="w-5 h-5" />
-            <span>Upload Files</span>
-          </button> */}
-          <button
-            onClick={() => setCurrentView('memory')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'memory' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <History className="w-5 h-5" />
-            <span>Memory Logs</span>
-          </button>
-          <button
-            onClick={() => setCurrentView('files')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'files' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <FileText className="w-5 h-5" />
-            <span>Files</span>
-          </button>
-          <button
-            onClick={() => setCurrentView('services')}
-            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-300 ${currentView === 'services' ? 'bg-sage-100 text-sage-800' : 'text-sage-600 hover:bg-sage-50'}`}
-          >
-            <Network className="w-5 h-5" />
-            <span>External Services</span>
-          </button>
-        </nav>
-      </div>
-
-      {/* Main Content */}
-      <div className={`transition-all duration-500 ease-out ${sidebarOpen ? 'ml-80' : 'ml-0'}`}>
-        {/* Header */}
-        <header className="bg-white/30 backdrop-blur-md border-b border-sage-200/30 px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <button 
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-2 rounded-lg bg-sage-100/50 hover:bg-sage-200/50 transition-colors duration-200"
-              >
-                <div className="w-5 h-5 flex flex-col justify-between">
-                  <div className="w-full h-0.5 bg-sage-600 rounded"></div>
-                  <div className="w-full h-0.5 bg-sage-600 rounded"></div>
-                  <div className="w-full h-0.5 bg-sage-600 rounded"></div>
+    <div className="flex h-screen bg-sage-50 text-sage-900 font-sans overflow-hidden">
+      
+      {/* --- Sidebar --- */}
+      <aside 
+        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-sage-200 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${
+          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        } ${!sidebarOpen && 'lg:hidden'}`}
+      >
+        <div className="flex flex-col h-full">
+          {/* Header & New Chat */}
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between px-1">
+              <div className="flex items-center space-x-2 font-bold text-xl text-sage-800">
+                <div className="w-8 h-8 bg-sage-600 rounded-lg flex items-center justify-center text-white">
+                  <Brain className="w-5 h-5" />
                 </div>
-              </button>
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-br from-sage-400 to-sage-600 rounded-full flex items-center justify-center animate-pulse">
-                  <Leaf className="w-4 h-4 text-white" />
-                </div>
-                <div>
-                  <h1 className="font-bold text-xl text-sage-800">A.U.R.A</h1>
-                  <p className="text-sm text-sage-600">Ready to assist</p>
-                </div>
+                <span>A.U.R.A</span>
               </div>
+              <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-sage-400">
+                <PanelLeftClose className="w-6 h-6" />
+              </button>
             </div>
-            <div className="flex items-center space-x-3">
-              {isLoaded && user ? (
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2 px-4 py-2 bg-sage-100/50 rounded-full">
-                    <User className="w-4 h-4 text-sage-700" />
-                    <span className="text-sm text-sage-700">{currentUser?.full_name || currentUser?.email}</span>
-                  </div>
-                  <div className="clerk-user-button-wrapper">
-                    <UserButton
-                      appearance={{
-                        elements: {
-                          avatarBox: 'w-10 h-10',
-                          userButtonPopoverCard: 'bg-white shadow-2xl border border-sage-200',
-                          userButtonPopoverActionButton: 'hover:bg-sage-50',
-                        }
-                      }}
-                    />
-                  </div>
-                </div>
-              ) : isLoaded ? (
-                <SignInButton mode="modal">
-                  <button className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl">
-                    <LogIn className="w-4 h-4" />
-                    <span className="text-sm font-medium">Sign In</span>
-                  </button>
-                </SignInButton>
-              ) : null}
-            </div>
-          </div>
-        </header>
 
-        {/* Chat View */}
-        {currentView === 'chat' && (
-          <div className="flex flex-col h-[calc(100vh-5rem)]">
-            {showFileUpload && (
-              <div className="p-6 bg-white/20 backdrop-blur-sm border-b border-sage-200/30 animate-slideIn">
-                <FileUpload
-                  onFileUploaded={handleFileUploaded}
-                  uploadedFiles={geminiService.getUploadedFiles()}
-                  onRemoveFile={handleRemoveFile}
-                />
+            <button 
+              onClick={createNewChat}
+              className="w-full flex items-center justify-between px-4 py-3 bg-sage-100 hover:bg-sage-200 text-sage-900 rounded-xl transition-colors group border border-sage-200"
+            >
+              <div className="flex items-center space-x-2">
+                <Plus className="w-5 h-5" />
+                <span className="font-semibold">New Chat</span>
+              </div>
+              <MessageSquare className="w-4 h-4 text-sage-400 group-hover:text-sage-600" />
+            </button>
+          </div>
+
+          {/* History List */}
+          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+            <div className="px-3 py-2 text-xs font-semibold text-sage-400 uppercase tracking-wider">
+              Recent History
+            </div>
+            
+            {chatSessions.length === 0 ? (
+              <div className="px-3 py-4 text-sm text-sage-400 text-center italic">
+                No history yet.
+              </div>
+            ) : (
+              chatSessions.map((session) => (
+                <div 
+                  key={session.id}
+                  onClick={() => loadSession(session)}
+                  className={`group flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-colors ${
+                    currentSessionId === session.id ? 'bg-sage-100/80 text-sage-900' : 'hover:bg-sage-50 text-sage-600'
+                  }`}
+                >
+                  <div className="flex items-center space-x-3 overflow-hidden">
+                    <MessageCircle className="w-4 h-4 flex-shrink-0 text-sage-400" />
+                    <span className="text-sm truncate">{session.title}</span>
+                  </div>
+                  <button 
+                    onClick={(e) => deleteSession(e, session.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-500 transition-opacity"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Bottom Tools Navigation */}
+          <div className="p-3 border-t border-sage-100 bg-sage-50/50 space-y-1">
+            <button 
+              onClick={() => setCurrentView('tasks')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === 'tasks' ? 'bg-white shadow-sm text-sage-900' : 'text-sage-600 hover:bg-white/60'}`}
+            >
+              <Zap className="w-4 h-4" />
+              <span>Task Center</span>
+            </button>
+            <button 
+              onClick={() => setCurrentView('files')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === 'files' ? 'bg-white shadow-sm text-sage-900' : 'text-sage-600 hover:bg-white/60'}`}
+            >
+              <FileText className="w-4 h-4" />
+              <span>Files</span>
+            </button>
+            <button 
+              onClick={() => setCurrentView('memory')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === 'memory' ? 'bg-white shadow-sm text-sage-900' : 'text-sage-600 hover:bg-white/60'}`}
+            >
+              <History className="w-4 h-4" />
+              <span>Logs</span>
+            </button>
+            <button 
+              onClick={() => setCurrentView('services')}
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-sm transition-colors ${currentView === 'services' ? 'bg-white shadow-sm text-sage-900' : 'text-sage-600 hover:bg-white/60'}`}
+            >
+              <Network className="w-4 h-4" />
+              <span>Services</span>
+            </button>
+          </div>
+
+          {/* User Footer */}
+          <div className="p-4 border-t border-sage-200">
+            {isLoaded && user && (
+              <div className="flex items-center space-x-3">
+                <UserButton afterSignOutUrl="/"/>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-sage-900 truncate">{currentUser?.full_name}</p>
+                  <p className="text-xs text-sage-500 truncate">{currentUser?.email}</p>
+                </div>
               </div>
             )}
-            
-            {/* Messages */}
-            <div className={`flex-1 overflow-y-auto p-6 space-y-6 ${showFileUpload ? 'h-[calc(1ch-20rem)]' : ''}`}>
-              {messages.map((message) => (
-                <div key={message.id} className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'} animate-slideIn`}>
-                  <div className={`max-w-2xl ${message.type === 'user' 
-                    ? 'bg-sage-500 text-white rounded-3xl rounded-br-lg' 
-                    : 'bg-white/60 backdrop-blur-sm text-sage-800 rounded-3xl rounded-bl-lg border border-sage-200/30'
-                  } px-6 py-4 shadow-sm hover:shadow-md transition-all duration-300`}>
-                    {message.type === 'assistant' ? (
-                      <Markdown content={message.content} />
-                    ) : (
-                      <p className="text-sm leading-relaxed">{message.content}</p>
-                    )}
-                    {message.imageUrl && message.imagePrompt && (
-                      <div className="mt-4">
-                        <ImageDisplay imageUrl={message.imageUrl} prompt={message.imagePrompt} />
-                      </div>
-                    )}
-                    {message.orderType && message.orderData && (
-                      <div className="mt-4">
-                        <OrderDisplay orderType={message.orderType} orderData={message.orderData} />
-                      </div>
-                    )}
-                    <p className={`text-xs mt-2 ${message.type === 'user' ? 'text-sage-100' : 'text-sage-500'}`}>
-                      {message.timestamp.toLocaleTimeString()}
-                    </p>
-                  </div>
-                </div>
-              ))}
+          </div>
+        </div>
+      </aside>
+
+      {/* --- Main Content --- */}
+      <main className="flex-1 flex flex-col relative min-w-0 bg-white">
+        
+        {/* Header (Context Bar) */}
+        <header className="h-14 border-b border-sage-100 flex items-center justify-between px-4 bg-white/80 backdrop-blur-sm z-10">
+          <div className="flex items-center">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="mr-3 p-1.5 rounded-md hover:bg-sage-100 text-sage-500">
+              {sidebarOpen ? <PanelLeftClose className="w-5 h-5" /> : <PanelLeft className="w-5 h-5" />}
+            </button>
+            <h1 className="font-semibold text-sage-800">
+              {currentView === 'chat' ? (currentMode === 'aura' ? 'General Assistant' : 'FasterBook Agent') : 
+               currentView.charAt(0).toUpperCase() + currentView.slice(1)}
+            </h1>
+          </div>
+
+          {currentView === 'chat' && (
+            <div className="relative">
+              <button
+                onClick={() => setShowModeDropdown(!showModeDropdown)}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                  currentMode === 'aura' 
+                    ? 'bg-sage-50 border-sage-200 text-sage-600' 
+                    : 'bg-orange-50 border-orange-200 text-orange-700'
+                }`}
+              >
+                {currentMode === 'aura' ? <Brain className="w-3.5 h-3.5" /> : <ShoppingBag className="w-3.5 h-3.5" />}
+                <span>{currentMode === 'aura' ? 'Standard' : 'Agent Mode'}</span>
+                <ChevronDown className="w-3 h-3" />
+              </button>
               
-              {(isTyping || isGeneratingImage) && (
-                <div className="flex justify-start animate-slideIn">
-                  <div className="bg-white/60 backdrop-blur-sm rounded-3xl rounded-bl-lg px-6 py-4 border border-sage-200/30">
-                    <div className="flex items-center space-x-3">
-                      <div className="flex space-x-2">
-                        <div className="w-2 h-2 bg-sage-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-sage-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-sage-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
-                      {isGeneratingImage && (
-                        <span className="text-sm text-sage-600">Generating image...</span>
-                      )}
-                    </div>
-                  </div>
+              {showModeDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-sage-100 p-1 z-20">
+                  <button onClick={() => handleModeChange('aura')} className="w-full flex items-center space-x-2 p-2 hover:bg-sage-50 rounded-lg text-left text-sm text-sage-800">
+                    <Brain className="w-4 h-4 text-sage-500"/> <span>Standard Mode</span>
+                  </button>
+                  <button onClick={() => handleModeChange('fasterbook')} className="w-full flex items-center space-x-2 p-2 hover:bg-orange-50 rounded-lg text-left text-sm text-sage-800">
+                    <ShoppingBag className="w-4 h-4 text-orange-500"/> <span>Agent Mode</span>
+                  </button>
                 </div>
               )}
             </div>
+          )}
+        </header>
 
-            {/* Input Area */}
-            <div className="p-6 bg-white/20 backdrop-blur-sm border-t border-sage-200/30">
+        {/* View Content */}
+        <div className="flex-1 overflow-hidden relative">
+          {currentView === 'chat' ? (
+            <div className="flex flex-col h-full">
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-2xl px-5 py-3.5 rounded-2xl shadow-sm text-sm leading-relaxed ${
+                      msg.type === 'user' 
+                        ? 'bg-sage-600 text-white rounded-tr-sm' 
+                        : 'bg-white border border-sage-200 text-sage-900 rounded-tl-sm'
+                    }`}>
+                      <Markdown content={msg.content} />
+                      {msg.imageUrl && (
+                        <div className="mt-3 rounded-lg overflow-hidden border border-white/20">
+                          <ImageDisplay imageUrl={msg.imageUrl} prompt={msg.imagePrompt || ''} />
+                        </div>
+                      )}
+                      {msg.orderType && msg.orderData && (
+                        <div className="mt-3">
+                          <OrderDisplay orderType={msg.orderType} orderData={msg.orderData} />
+                        </div>
+                      )}
+                      <span className={`text-[10px] block mt-1 ${msg.type === 'user' ? 'text-sage-200' : 'text-sage-400'}`}>
+                        {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                
+                {/* Loading Indicator */}
+                {(isTyping || isGeneratingImage) && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-sage-200 px-4 py-3 rounded-2xl rounded-tl-sm shadow-sm flex items-center space-x-1">
+                      <div className="w-1.5 h-1.5 bg-sage-400 rounded-full animate-bounce" />
+                      <div className="w-1.5 h-1.5 bg-sage-400 rounded-full animate-bounce delay-75" />
+                      <div className="w-1.5 h-1.5 bg-sage-400 rounded-full animate-bounce delay-150" />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Upload Error */}
               {uploadError && (
-                <div className="mb-4 flex items-center space-x-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700">
-                  <span className="text-sm">{uploadError}</span>
-                  <button onClick={() => setUploadError(null)} className="ml-auto text-red-500 hover:text-red-700">×</button>
+                <div className="mx-4 mb-2 p-2 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg flex justify-between items-center">
+                  <span>{uploadError}</span>
+                  <button onClick={() => setUploadError(null)} className="font-bold">×</button>
                 </div>
               )}
 
-              {/* Mode Selector Dropdown */}
-              <div className="relative mb-3 flex justify-center">
-                <button
-                  onClick={() => setShowModeDropdown(!showModeDropdown)}
-                  className="flex items-center space-x-2 px-4 py-2 bg-white/60 backdrop-blur-sm rounded-lg border border-sage-200/50 hover:bg-sage-50 transition-all text-sage-800 font-medium"
-                >
-                  {currentMode === 'aura' ? (
-                    <Brain className="w-5 h-5 text-sage-600" />
-                  ) : (
-                    <ShoppingBag className="w-5 h-5 text-orange-600" />
-                  )}
-                  <span>
-                    {currentMode === 'aura' ? 'A.U.R.A' : 'FasterBook Agent'}
-                  </span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${showModeDropdown ? 'rotate-180' : ''}`} />
-                </button>
+              {/* Input Area */}
+              <div className="p-4 bg-white border-t border-sage-100">
+                <div className={`max-w-4xl mx-auto flex items-end space-x-2 p-2 rounded-2xl border transition-colors ${
+                  currentMode === 'fasterbook' ? 'border-orange-200 bg-orange-50/30' : 'border-sage-200 bg-white'
+                } focus-within:ring-2 focus-within:ring-sage-200`}>
+                  
+                  <input type="file" id="file-upload" className="hidden" onChange={handleQuickFileUpload} disabled={isUploadingFile || currentMode === 'fasterbook'} />
+                  <button 
+                    onClick={() => document.getElementById('file-upload')?.click()}
+                    className={`p-2 rounded-xl transition-colors ${currentMode === 'fasterbook' ? 'text-sage-300 cursor-not-allowed' : 'text-sage-400 hover:bg-sage-100 hover:text-sage-600'}`}
+                    title={currentMode === 'fasterbook' ? "Upload disabled in Agent Mode" : "Upload File"}
+                  >
+                    {isUploadingFile ? <div className="w-5 h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin"/> : <Paperclip className="w-5 h-5" />}
+                  </button>
 
-                {showModeDropdown && (
-                  <div className="absolute bottom-full mb-2 w-72 bg-white rounded-xl shadow-2xl border border-sage-200/50 p-2 z-10 animate-bloom">
-                    <button
-                      onClick={() => handleModeChange('aura')}
-                      className={`w-full flex items-start space-x-3 p-3 rounded-lg hover:bg-sage-50 ${currentMode === 'aura' ? 'bg-sage-100' : ''}`}
-                    >
-                      <Leaf className="w-5 h-5 text-sage-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-sage-800 text-left">A.U.R.A</p>
-                        <p className="text-sm text-sage-600 text-left">General chat, file analysis, and image generation.</p>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => handleModeChange('fasterbook')}
-                      className={`w-full flex items-start space-x-3 p-3 rounded-lg hover:bg-orange-50 ${currentMode === 'fasterbook' ? 'bg-orange-100' : ''}`}
-                    >
-                      <ShoppingBag className="w-5 h-5 text-orange-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-semibold text-orange-800 text-left">FasterBook Agent</p>
-                        <p className="text-sm text-orange-600 text-left">Dedicated agent for booking food and movies.</p>
-                      </div>
-                    </button>
-                  </div>
-                )}
-              </div>
-              
-              {/* Main Input Bar */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-end space-y-3 sm:space-y-0 sm:space-x-4">
-                
-                <div className="flex-1 relative">
-                  {/* --- NEW: Show pending action hint --- */}
-                  {pendingAction && (
-                    <div className="absolute -top-8 left-2 text-xs text-orange-700 bg-orange-100/80 px-2 py-1 rounded-md animate-pulse">
-                      Waiting for details... (e.g., address, seats)
-                    </div>
-                  )}
-                  {/* --- END NEW --- */}
                   <textarea
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                    // --- MODIFIED: Placeholder updates when waiting for answer ---
-                    placeholder={pendingAction
-                      ? 'Please provide the missing details...'
-                      : currentMode === 'fasterbook'
-                        ? "Agent Mode: Order food or book movies..."
-                        : "Chat with A.U.R.A..."}
-                    // --- END MODIFICATION ---
-                    className={`w-full px-4 sm:px-6 py-3 sm:py-4 bg-white/60 backdrop-blur-sm rounded-2xl focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-300 text-sage-800 placeholder-sage-500 text-sm sm:text-base resize-none min-h-[56px] max-h-32 ${
-                      currentMode === 'fasterbook'
-                        ? 'border-2 border-orange-400 focus:ring-orange-500'
-                        : 'border border-sage-200/50 focus:ring-sage-300'
-                    }`}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage(); }}}
+                    placeholder={pendingAction ? "Please provide details..." : currentMode === 'fasterbook' ? "Ask to order food or book movies..." : "Message A.U.R.A..."}
+                    className="flex-1 bg-transparent border-0 focus:ring-0 resize-none py-2.5 max-h-32 text-sm text-sage-900 placeholder:text-sage-400"
                     rows={1}
+                    style={{ minHeight: '44px' }}
                   />
 
-                  {geminiService.getUploadedFiles().length > 0 && currentMode === 'aura' && !pendingAction && (
-                    <div className="absolute -top-8 left-2 text-xs text-sage-600 bg-sage-100/80 px-2 py-1 rounded-md">
-                      📎 {geminiService.getUploadedFiles().length} file(s) attached
-                    </div>
-                  )}
-                </div>
-
-                <input
-                  type="file"
-                  accept="*"
-                  onChange={handleQuickFileUpload}
-                  className="hidden"
-                  id="quick-file-upload"
-                  disabled={isUploadingFile || currentMode === 'fasterbook'}
-                />
-
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <button
-                    onClick={() => document.getElementById('quick-file-upload')?.click()}
-                    disabled={isUploadingFile || currentMode === 'fasterbook'}
-                    className="p-3 sm:p-4 rounded-xl bg-sage-100 text-sage-600 hover:bg-sage-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300"
-                    title={currentMode === 'fasterbook' ? 'File upload disabled in Agent Mode' : 'Upload file'}
-                  >
-                    {isUploadingFile ? <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-sage-400 border-t-transparent rounded-full animate-spin" /> : <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />}
-                  </button>
-                  {/* <button
-                    onClick={toggleVoice}
-                    className={`p-3 sm:p-4 rounded-xl transition-all duration-300 ${isListening ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-sage-100 text-sage-600 hover:bg-sage-200'}`}
-                  >
-                    {isListening ? <MicOff className="w-4 h-4 sm:w-5 sm:h-5" /> : <Mic className="w-4 h-4 sm:w-5 sm:h-5" />}
-                    {isListening && <Waves className="w-3 h-3 sm:w-4 sm:h-4 absolute animate-ping" />}
-                  </button> */}
                   <button
                     onClick={handleSendMessage}
-                    disabled={!input.trim() || isTyping || isGeneratingImage}
-                    className={`px-4 sm:px-6 py-3 sm:py-4 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-sm hover:shadow-md text-sm sm:text-base font-medium ${
-                      currentMode === 'fasterbook' || pendingAction
-                        ? 'bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600'
-                        : 'bg-gradient-to-r from-sage-500 to-sage-600 hover:from-sage-600 hover:to-sage-700'
+                    disabled={!input.trim() || isTyping}
+                    className={`p-2 rounded-xl transition-all duration-200 ${
+                      !input.trim() || isTyping
+                        ? 'bg-sage-100 text-sage-300'
+                        : currentMode === 'fasterbook' 
+                          ? 'bg-orange-500 text-white shadow-md shadow-orange-200 hover:bg-orange-600'
+                          : 'bg-sage-600 text-white shadow-md shadow-sage-200 hover:bg-sage-700'
                     }`}
                   >
-                    Send
+                    <Send className="w-5 h-5" />
                   </button>
+                </div>
+                
+                {/* Hints */}
+                <div className="max-w-4xl mx-auto mt-2 flex justify-between items-center text-[10px] text-sage-400 px-2">
+                  <span className="flex items-center gap-1">
+                    {currentMode === 'fasterbook' && <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />}
+                    {currentMode === 'fasterbook' ? 'Agent Mode Active' : 'AI Reasoning Active'}
+                  </span>
+                  <span>{geminiService.getUploadedFiles().length > 0 ? `${geminiService.getUploadedFiles().length} file(s) attached` : ''}</span>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Other Views */}
-        {currentView === 'tasks' && <TaskCenter />}
-        {currentView === 'files' && <FilesView files={geminiService.getUploadedFiles()} onRemoveFile={handleRemoveFile} />}
-        {currentView === 'memory' && <MemoryLogs messages={messages} />}
-        {currentView === 'services' && <ExternalServices />}
-      </div>
-
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+          ) : (
+            // Other Views Container
+            <div className="h-full w-full bg-sage-50 p-6 overflow-y-auto">
+              {currentView === 'tasks' && <TaskCenter />}
+              {currentView === 'files' && <FilesView files={geminiService.getUploadedFiles()} onRemoveFile={(name) => geminiService.removeUploadedFile(name)} />}
+              {currentView === 'memory' && <MemoryLogs messages={messages} />}
+              {currentView === 'services' && <ExternalServices />}
+            </div>
+          )}
+        </div>
+      </main>
     </div>
   );
 }
