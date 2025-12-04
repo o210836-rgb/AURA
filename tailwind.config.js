@@ -4,41 +4,45 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'], // Ensure Inter is loaded in index.html or use system fonts
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       colors: {
-        // Modern, cool neutral palette (replacing Sage/Beige)
-        zinc: {
-          50: '#fafafa',
-          100: '#f4f4f5',
-          200: '#e4e4e7',
-          300: '#d4d4d8',
-          400: '#a1a1aa',
-          500: '#71717a',
-          600: '#52525b',
-          700: '#3f3f46',
-          800: '#27272a',
-          900: '#18181b',
-          950: '#09090b',
+        // "Stone" replaces standard gray for a warmer, 'paper-like' feel
+        stone: {
+          50: '#fafaf9',
+          100: '#f5f5f4',
+          200: '#e7e5e4',
+          300: '#d6d3d1',
+          400: '#a8a29e',
+          500: '#78716c',
+          600: '#57534e',
+          700: '#44403c',
+          800: '#292524',
+          900: '#1c1917',
         },
-        // A sophisticated accent color (subtle electric blue/indigo) instead of flat green
-        brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#3b82f6',
-          600: '#2563eb', // Primary action color
-          700: '#1d4ed8',
-          800: '#1e40af',
-          900: '#1e3a8a',
+        // "Vintage Moss" - Lively, healthy, organic green
+        vintage: {
+          50: '#f2f8f1',
+          100: '#e1efe0',
+          200: '#c5dec2',
+          300: '#9bc396',
+          400: '#6fa168',
+          500: '#4f8048', // Main brand color
+          600: '#3d6638',
+          700: '#32522e',
+          800: '#294126',
+          900: '#223620',
+        },
+        // A soft "Clay" accent for warmth (like the movie HER)
+        clay: {
+          50: '#fff1f2',
+          500: '#f43f5e',
         }
       },
       animation: {
-        'fade-in': 'fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
-        'slide-up': 'slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'fade-in': 'fadeIn 0.5s ease-out',
+        'slide-up': 'slideUp 0.5s ease-out',
+        'breathe': 'breathe 6s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -46,12 +50,16 @@ export default {
           '100%': { opacity: 1 },
         },
         slideUp: {
-          '0%': { transform: 'translateY(10px)', opacity: 0 },
+          '0%': { transform: 'translateY(15px)', opacity: 0 },
           '100%': { transform: 'translateY(0)', opacity: 1 },
         },
+        breathe: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.02)' },
+        },
       },
-      backdropBlur: {
-        'xs': '2px',
+      backgroundImage: {
+        'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E\")",
       }
     },
   },
