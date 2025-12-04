@@ -1,9 +1,11 @@
+// src/App.tsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   MessageSquare, Plus, History, FileText, Zap, 
   Network, ChevronDown, Brain, ShoppingBag, 
   Send, Paperclip, PanelLeftClose, PanelLeft, 
-  Trash2, MessageCircle, MoreHorizontal, LayoutGrid
+  Trash2, MessageCircle, MoreHorizontal, LayoutGrid, Settings
 } from 'lucide-react';
 import { GeminiService, MissingDetailsError } from './services/gemini';
 import { ImageDisplay } from './components/ImageDisplay';
