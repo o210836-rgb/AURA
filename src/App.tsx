@@ -3,9 +3,7 @@ import {
   MessageSquare, Plus, History, FileText, Zap, 
   Network, ChevronDown, Brain, ShoppingBag, 
   Send, Paperclip, PanelLeftClose, PanelLeft, 
-  Trash2, MessageCircle, MoreHorizontal, LayoutGrid, 
-  Settings, // <--- Fixed: Added Settings import
-  Sparkles
+  Trash2, MessageCircle, Settings, Sparkles
 } from 'lucide-react';
 import { GeminiService, MissingDetailsError } from './services/gemini';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -48,22 +46,20 @@ type AppMode = 'aura' | 'fasterbook';
 type ViewType = 'chat' | 'tasks' | 'files' | 'memory' | 'services';
 
 function App() {
-  // --- State: Auth & Core ---
+  // --- State ---
   const { user, isLoaded, isSignedIn } = useUser();
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
   const [geminiService] = useState(() => new GeminiService());
 
-  // --- State: UI & Navigation ---
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentView, setCurrentView] = useState<ViewType>('chat');
   const [currentMode, setCurrentMode] = useState<AppMode>('aura');
   const [showModeDropdown, setShowModeDropdown] = useState(false);
 
-  // --- State: Chat Data ---
   const defaultMessage: Message = {
     id: 'init',
     type: 'assistant',
-    content: "Hi, I'm A.U.R.A. I'm here to help you think, create, or just chat.",
+    content: "Hi, I'm A.U.R.A. I'm here to help you create, plan, or just explore.",
     timestamp: new Date()
   };
 
@@ -71,7 +67,6 @@ function App() {
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   
-  // --- State: Inputs & Processing ---
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -98,8 +93,7 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // --- Chat Session Management ---
-
+  // --- Actions ---
   const createNewChat = () => {
     if (messages.length > 1) { 
       const newSession: ChatSession = {
@@ -119,7 +113,6 @@ function App() {
         return [newSession, ...prev];
       });
     }
-
     setMessages([defaultMessage]);
     setCurrentSessionId(null);
     setCurrentView('chat');
@@ -141,20 +134,6 @@ function App() {
       setMessages([defaultMessage]);
       setCurrentSessionId(null);
     }
-  };
-
-  // --- Handlers ---
-
-  const handleModeChange = (newMode: AppMode) => {
-    setCurrentMode(newMode);
-    setShowModeDropdown(false);
-    setPendingAction(null);
-    setMessages(prev => [...prev, {
-      id: Date.now().toString(),
-      type: 'assistant',
-      content: `I've switched to **${newMode === 'aura' ? 'General' : 'FasterBook Agent'}** mode.`,
-      timestamp: new Date()
-    }]);
   };
 
   const handleSendMessage = async () => {
@@ -184,7 +163,6 @@ function App() {
 
     try {
       let aiResponse: string;
-
       if (isFollowUp) {
         aiResponse = actionToExecute;
       } else {
@@ -200,7 +178,7 @@ function App() {
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
             type: 'assistant',
-            content: `I've created an image for you: "${imagePrompt}"`,
+            content: `I've created an image for: "${imagePrompt}"`,
             timestamp: new Date(),
             imageUrl,
             imagePrompt
@@ -219,9 +197,8 @@ function App() {
       else if (aiResponse.endsWith('_REQUEST')) {
         const agenticAction = await geminiService.executeAgenticAction(messageToSend, aiResponse);
         if (agenticAction) {
-          let content = 'Here is the information you requested:';
-          if (agenticAction.type.includes('menu')) content = 'Here is the current menu from FasterBook:';
-          if (agenticAction.type.includes('bookings')) content = 'I found these bookings for you:';
+          let content = 'Here is the result:';
+          if (agenticAction.type.includes('menu')) content = 'Here is the FasterBook menu:';
           
           setMessages(prev => [...prev, {
             id: (Date.now() + 1).toString(),
@@ -256,7 +233,7 @@ function App() {
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           type: 'assistant',
-          content: "I'm having trouble connecting right now. Could you say that again?",
+          content: "I'm having trouble connecting. Could you say that again?",
           timestamp: new Date()
         }]);
       }
@@ -275,7 +252,7 @@ function App() {
       setMessages(prev => [...prev, {
         id: Date.now().toString(),
         type: 'assistant',
-        content: `I've added **"${extractedFile.name}"** to my context.`,
+        content: `I've added **"${extractedFile.name}"** to my memory.`,
         timestamp: new Date()
       }]);
     } catch (error: any) {
@@ -286,31 +263,29 @@ function App() {
     }
   };
 
-  const handleRemoveFile = (fileName: string) => {
-    geminiService.removeUploadedFile(fileName);
+  const handleModeChange = (newMode: AppMode) => {
+    setCurrentMode(newMode);
+    setShowModeDropdown(false);
+    setMessages(prev => [...prev, {
+      id: Date.now().toString(),
+      type: 'assistant',
+      content: `I'm now in **${newMode === 'aura' ? 'General' : 'FasterBook Agent'}** mode.`,
+      timestamp: new Date()
+    }]);
   };
 
-  if (!isLoaded) return (
-    <div className="h-screen flex items-center justify-center bg-[#FDFCF8]">
-      <div className="flex flex-col items-center gap-4">
-        <div className="w-3 h-3 bg-vintage-500 rounded-full animate-ping"></div>
-        <p className="text-stone-400 text-sm font-medium tracking-wide">INITIALIZING AURA</p>
-      </div>
-    </div>
-  );
-  
+  if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-stone-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-stone-800"></div></div>;
   if (!isSignedIn) return <LandingPage />;
 
   return (
-    <div className="flex h-screen bg-[#FDFCF8] text-stone-800 font-sans overflow-hidden selection:bg-vintage-100 selection:text-vintage-900 bg-noise">
+    <div className="flex h-screen bg-stone-50 text-stone-800 font-sans overflow-hidden selection:bg-vintage-100 selection:text-vintage-900 bg-noise">
       
-      {/* --- Sidebar (Glassy & Warm) --- */}
+      {/* --- Sidebar (Warm Glass) --- */}
       <aside 
-        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-[#FDFCF8]/95 backdrop-blur-xl border-r border-stone-200/60 transform transition-transform duration-500 cubic-bezier(0.2, 0.8, 0.2, 1) lg:relative lg:translate-x-0 flex flex-col shadow-2xl lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-[#fafaf9]/95 backdrop-blur-xl border-r border-stone-200/60 transform transition-transform duration-500 cubic-bezier(0.2, 0.8, 0.2, 1) lg:relative lg:translate-x-0 flex flex-col shadow-2xl lg:shadow-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } ${!sidebarOpen && 'lg:hidden'}`}
       >
-        {/* Sidebar Header */}
         <div className="p-5 flex-shrink-0">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-3">
@@ -319,7 +294,7 @@ function App() {
               </div>
               <span className="font-bold text-lg tracking-tight text-stone-800">A.U.R.A</span>
             </div>
-            <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-stone-100 rounded-full text-stone-400 transition-colors">
+            <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-stone-100 rounded-full text-stone-400">
               <PanelLeftClose className="w-5 h-5" />
             </button>
           </div>
@@ -335,16 +310,12 @@ function App() {
           </button>
         </div>
 
-        {/* Sidebar History */}
         <div className="flex-1 overflow-y-auto px-3 space-y-1 min-h-0 custom-scrollbar">
           <div className="px-3 py-2 text-[11px] font-bold text-stone-400 uppercase tracking-widest">
-            History
+            Recent
           </div>
-          
           {chatSessions.length === 0 ? (
-            <div className="px-3 py-4 text-sm text-stone-400 italic font-light">
-              Your conversations live here.
-            </div>
+            <div className="px-3 py-4 text-sm text-stone-400 italic font-light">Your history is empty.</div>
           ) : (
             chatSessions.map((session) => (
               <div 
@@ -368,8 +339,7 @@ function App() {
           )}
         </div>
 
-        {/* Sidebar Bottom Nav */}
-        <div className="p-3 border-t border-stone-100 bg-[#FDFCF8]/50 flex-shrink-0">
+        <div className="p-3 border-t border-stone-100 bg-[#fafaf9]/50 flex-shrink-0">
           <div className="grid grid-cols-4 gap-1 mb-4">
             {[
               { id: 'tasks', icon: Zap, label: 'Tasks' },
@@ -394,7 +364,7 @@ function App() {
           <div className="flex items-center space-x-3 p-2.5 rounded-2xl bg-white border border-stone-100 shadow-sm">
             <UserButton afterSignOutUrl="/"/>
             <div className="flex-1 min-w-0 overflow-hidden">
-              <p className="text-sm font-semibold text-stone-800 truncate">{currentUser?.full_name}</p>
+              <p className="text-sm font-semibold text-stone-800 truncate">{currentUser?.full_name || 'Guest'}</p>
               <p className="text-[10px] text-stone-400 truncate tracking-wide">PRO PLAN</p>
             </div>
             <Settings className="w-4 h-4 text-stone-300 hover:text-stone-500 cursor-pointer transition-colors" />
@@ -402,19 +372,15 @@ function App() {
         </div>
       </aside>
 
-      {/* --- Main Content Area --- */}
+      {/* --- Main Content --- */}
       <main className="flex-1 flex flex-col relative min-w-0 bg-[#FDFCF8] shadow-inner">
         
-        {/* Top Bar */}
+        {/* Header */}
         <header className="h-20 flex items-center justify-between px-6 lg:px-10 sticky top-0 z-10 bg-[#FDFCF8]/80 backdrop-blur-md">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`p-2 rounded-xl hover:bg-stone-100 text-stone-500 transition-all ${sidebarOpen ? 'hidden lg:block lg:opacity-0' : ''}`}
-            >
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 rounded-xl hover:bg-stone-100 text-stone-500 transition-all ${sidebarOpen ? 'hidden lg:block lg:opacity-0' : ''}`}>
               <PanelLeft className="w-5 h-5" />
             </button>
-            
             <div className="flex flex-col">
               <span className="text-lg font-semibold text-stone-800 tracking-tight">
                 {currentView === 'chat' ? (currentMode === 'aura' ? 'General' : 'Agent Mode') : 
@@ -442,20 +408,14 @@ function App() {
               
               {showModeDropdown && (
                 <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-2xl shadow-2xl shadow-stone-200/50 border border-stone-100 p-2 z-20 animate-slide-up origin-top-right">
-                  <button
-                    onClick={() => handleModeChange('aura')}
-                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-stone-50 transition-colors text-left"
-                  >
+                  <button onClick={() => handleModeChange('aura')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-stone-50 transition-colors text-left">
                     <div className="p-2.5 bg-stone-100 rounded-lg"><Brain className="w-5 h-5 text-stone-600"/></div>
                     <div>
                       <p className="text-sm font-bold text-stone-800">Standard Mode</p>
-                      <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">Reasoning, creativity, and document analysis.</p>
+                      <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">Reasoning, creativity, and analysis.</p>
                     </div>
                   </button>
-                  <button
-                    onClick={() => handleModeChange('fasterbook')}
-                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-orange-50 transition-colors text-left"
-                  >
+                  <button onClick={() => handleModeChange('fasterbook')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-orange-50 transition-colors text-left">
                     <div className="p-2.5 bg-orange-100 rounded-lg"><ShoppingBag className="w-5 h-5 text-orange-600"/></div>
                     <div>
                       <p className="text-sm font-bold text-stone-800">Agent Mode</p>
@@ -468,12 +428,12 @@ function App() {
           )}
         </header>
 
-        {/* Viewport */}
+        {/* View Content */}
         <div className="flex-1 overflow-hidden relative">
           {currentView === 'chat' ? (
             <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
               
-              {/* Messages Area */}
+              {/* Chat Area */}
               <div className="flex-1 overflow-y-auto px-6 py-8 space-y-10 scroll-smooth custom-scrollbar">
                 {messages.length === 1 && (
                   <div className="flex flex-col items-center justify-center h-full pb-20 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s', opacity: 1 }}>
@@ -481,36 +441,25 @@ function App() {
                       <Sparkles className="w-8 h-8 text-vintage-400" />
                     </div>
                     <h2 className="text-2xl font-bold text-stone-800 mb-2">Good afternoon.</h2>
-                    <p className="text-stone-500">I'm ready when you are.</p>
+                    <p className="text-stone-500">I'm listening.</p>
                   </div>
                 )}
 
                 {messages.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'} animate-slide-up group`}>
                     <div className={`flex max-w-2xl ${msg.type === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-5`}>
-                      
-                      {/* Avatar */}
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold tracking-wider shadow-sm ${
-                        msg.type === 'user' 
-                          ? 'bg-stone-800 text-stone-100' 
-                          : currentMode === 'fasterbook' ? 'bg-orange-100 text-orange-600' : 'bg-white border border-stone-200 text-vintage-600'
+                        msg.type === 'user' ? 'bg-stone-800 text-stone-100' : 
+                        currentMode === 'fasterbook' ? 'bg-orange-100 text-orange-600' : 'bg-white border border-stone-200 text-vintage-600'
                       }`}>
                         {msg.type === 'user' ? 'YOU' : 'AI'}
                       </div>
 
-                      {/* Bubble */}
-                      <div className={`relative p-0 text-[15px] leading-7 ${
-                        msg.type === 'user' 
-                          ? 'text-stone-800' 
-                          : 'text-stone-700'
-                      }`}>
+                      <div className={`relative p-0 text-[15px] leading-7 ${msg.type === 'user' ? 'text-stone-800' : 'text-stone-700'}`}>
                         <div className={`p-5 rounded-2xl ${
-                          msg.type === 'user' 
-                            ? 'bg-stone-100 rounded-tr-sm text-stone-900' 
-                            : 'bg-white border border-stone-100 shadow-sm rounded-tl-sm'
+                          msg.type === 'user' ? 'bg-stone-100 rounded-tr-sm text-stone-900' : 'bg-white border border-stone-100 shadow-sm rounded-tl-sm'
                         }`}>
                           <Markdown content={msg.content} />
-                          
                           {msg.imageUrl && (
                             <div className="mt-4 rounded-xl overflow-hidden shadow-sm">
                               <ImageDisplay imageUrl={msg.imageUrl} prompt={msg.imagePrompt || ''} />
@@ -522,7 +471,6 @@ function App() {
                             </div>
                           )}
                         </div>
-                        
                         <span className={`text-[10px] absolute -bottom-6 ${msg.type === 'user' ? 'right-0' : 'left-0'} text-stone-300 font-medium opacity-0 group-hover:opacity-100 transition-opacity`}>
                           {msg.timestamp.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
