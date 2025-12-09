@@ -3,7 +3,7 @@ import {
   MessageSquare, Plus, History, FileText, Zap, 
   Network, ChevronDown, Brain, ShoppingBag, 
   Send, Paperclip, PanelLeftClose, PanelLeft, 
-  Trash2, MessageCircle, Settings, Sparkles
+  Trash2, Settings, Sparkles, User
 } from 'lucide-react';
 import { GeminiService, MissingDetailsError } from './services/gemini';
 import { ImageDisplay } from './components/ImageDisplay';
@@ -46,7 +46,6 @@ type AppMode = 'aura' | 'fasterbook';
 type ViewType = 'chat' | 'tasks' | 'files' | 'memory' | 'services';
 
 function App() {
-  // --- State ---
   const { user, isLoaded, isSignedIn } = useUser();
   const [currentUser, setCurrentUser] = useState<ClerkUser | null>(null);
   const [geminiService] = useState(() => new GeminiService());
@@ -76,7 +75,6 @@ function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // --- Effects ---
   useEffect(() => {
     const loadUser = async () => {
       if (isLoaded && user) {
@@ -93,7 +91,6 @@ function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // --- Actions ---
   const createNewChat = () => {
     if (messages.length > 1) { 
       const newSession: ChatSession = {
@@ -274,11 +271,11 @@ function App() {
     }]);
   };
 
-  if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-stone-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-stone-800"></div></div>;
+  if (!isLoaded) return <div className="h-screen flex items-center justify-center bg-stone-50"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-aura-600"></div></div>;
   if (!isSignedIn) return <LandingPage />;
 
   return (
-    <div className="flex h-screen bg-stone-50 text-stone-800 font-sans overflow-hidden selection:bg-vintage-100 selection:text-vintage-900 bg-noise">
+    <div className="flex h-screen bg-[#FDFCF8] text-stone-800 font-sans overflow-hidden selection:bg-aura-100 selection:text-aura-900 bg-noise">
       
       {/* --- Sidebar (Warm Glass) --- */}
       <aside 
@@ -289,10 +286,10 @@ function App() {
         <div className="p-5 flex-shrink-0">
           <div className="flex items-center justify-between mb-8">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-vintage-500 to-vintage-600 rounded-xl flex items-center justify-center shadow-lg shadow-vintage-500/20">
-                <Brain className="w-4 h-4 text-white" />
+              <div className="w-9 h-9 bg-gradient-to-br from-aura-500 to-aura-600 rounded-xl flex items-center justify-center shadow-lg shadow-aura-500/20">
+                <Brain className="w-5 h-5 text-white" />
               </div>
-              <span className="font-bold text-lg tracking-tight text-stone-800">A.U.R.A</span>
+              <span className="font-bold text-lg tracking-tight text-stone-900 font-serif">A.U.R.A</span>
             </div>
             <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-2 hover:bg-stone-100 rounded-full text-stone-400">
               <PanelLeftClose className="w-5 h-5" />
@@ -301,10 +298,10 @@ function App() {
 
           <button 
             onClick={createNewChat}
-            className="w-full flex items-center justify-between px-4 py-3.5 bg-white hover:bg-vintage-50 text-stone-700 hover:text-vintage-800 rounded-2xl transition-all shadow-sm border border-stone-100 group hover:border-vintage-200"
+            className="w-full flex items-center justify-between px-4 py-3.5 bg-white hover:bg-aura-50 text-stone-700 hover:text-aura-800 rounded-2xl transition-all shadow-sm border border-stone-100 group hover:border-aura-200"
           >
             <div className="flex items-center space-x-3">
-              <Plus className="w-5 h-5 text-vintage-400 group-hover:text-vintage-600 transition-colors" />
+              <Plus className="w-5 h-5 text-aura-400 group-hover:text-aura-600 transition-colors" />
               <span className="font-medium">New Chat</span>
             </div>
           </button>
@@ -323,14 +320,14 @@ function App() {
                 onClick={() => loadSession(session)}
                 className={`group flex items-center justify-between px-3 py-3 rounded-xl cursor-pointer transition-all ${
                   currentSessionId === session.id 
-                    ? 'bg-stone-100 text-stone-900 font-medium' 
+                    ? 'bg-aura-50 text-aura-900 font-medium' 
                     : 'hover:bg-stone-50 text-stone-500 hover:text-stone-800'
                 }`}
               >
                 <span className="text-sm truncate w-full">{session.title}</span>
                 <button 
                   onClick={(e) => deleteSession(e, session.id)}
-                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-stone-200 rounded-lg text-stone-400 hover:text-clay-500 transition-all"
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-lively-50 rounded-lg text-stone-400 hover:text-lively-500 transition-all"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -352,7 +349,7 @@ function App() {
                 onClick={() => setCurrentView(item.id as ViewType)} 
                 className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-300 ${
                   currentView === item.id 
-                    ? 'bg-stone-100 text-vintage-700 shadow-sm' 
+                    ? 'bg-stone-100 text-aura-700 shadow-sm' 
                     : 'text-stone-400 hover:bg-stone-50 hover:text-stone-600'
                 }`}
               >
@@ -382,11 +379,11 @@ function App() {
               <PanelLeft className="w-5 h-5" />
             </button>
             <div className="flex flex-col">
-              <span className="text-lg font-semibold text-stone-800 tracking-tight">
+              <span className="text-lg font-bold text-stone-800 tracking-tight font-serif">
                 {currentView === 'chat' ? (currentMode === 'aura' ? 'General' : 'Agent Mode') : 
                  currentView.charAt(0).toUpperCase() + currentView.slice(1)}
               </span>
-              <span className="text-xs text-stone-400 font-medium tracking-wide">
+              <span className="text-xs text-aura-500 font-medium tracking-wide">
                 {isTyping ? 'Thinking...' : 'Active'}
               </span>
             </div>
@@ -398,8 +395,8 @@ function App() {
                 onClick={() => setShowModeDropdown(!showModeDropdown)}
                 className={`flex items-center gap-3 px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest border transition-all duration-300 ${
                   currentMode === 'aura' 
-                    ? 'bg-white border-stone-200 text-stone-600 hover:border-vintage-300' 
-                    : 'bg-orange-50 border-orange-200 text-orange-700'
+                    ? 'bg-white border-stone-200 text-stone-600 hover:border-aura-300 hover:text-aura-700' 
+                    : 'bg-lively-50 border-lively-200 text-lively-700'
                 }`}
               >
                 {currentMode === 'aura' ? 'Standard' : 'Agent'}
@@ -407,16 +404,16 @@ function App() {
               </button>
               
               {showModeDropdown && (
-                <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-2xl shadow-2xl shadow-stone-200/50 border border-stone-100 p-2 z-20 animate-slide-up origin-top-right">
-                  <button onClick={() => handleModeChange('aura')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-stone-50 transition-colors text-left">
-                    <div className="p-2.5 bg-stone-100 rounded-lg"><Brain className="w-5 h-5 text-stone-600"/></div>
+                <div className="absolute right-0 top-full mt-3 w-72 bg-white rounded-2xl shadow-2xl shadow-aura-500/10 border border-stone-100 p-2 z-20 animate-slide-up origin-top-right">
+                  <button onClick={() => handleModeChange('aura')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-aura-50 transition-colors text-left">
+                    <div className="p-2.5 bg-aura-100 rounded-lg"><Brain className="w-5 h-5 text-aura-600"/></div>
                     <div>
                       <p className="text-sm font-bold text-stone-800">Standard Mode</p>
                       <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">Reasoning, creativity, and analysis.</p>
                     </div>
                   </button>
-                  <button onClick={() => handleModeChange('fasterbook')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-orange-50 transition-colors text-left">
-                    <div className="p-2.5 bg-orange-100 rounded-lg"><ShoppingBag className="w-5 h-5 text-orange-600"/></div>
+                  <button onClick={() => handleModeChange('fasterbook')} className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-lively-50 transition-colors text-left">
+                    <div className="p-2.5 bg-lively-100 rounded-lg"><ShoppingBag className="w-5 h-5 text-lively-600"/></div>
                     <div>
                       <p className="text-sm font-bold text-stone-800">Agent Mode</p>
                       <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">Autonomous booking for food and movies.</p>
@@ -437,11 +434,11 @@ function App() {
               <div className="flex-1 overflow-y-auto px-6 py-8 space-y-10 scroll-smooth custom-scrollbar">
                 {messages.length === 1 && (
                   <div className="flex flex-col items-center justify-center h-full pb-20 opacity-0 animate-fade-in" style={{ animationDelay: '0.2s', opacity: 1 }}>
-                    <div className="w-20 h-20 bg-gradient-to-tr from-stone-100 to-white rounded-full flex items-center justify-center shadow-sm mb-6 border border-stone-50">
-                      <Sparkles className="w-8 h-8 text-vintage-400" />
+                    <div className="w-20 h-20 bg-gradient-to-tr from-aura-50 to-white rounded-full flex items-center justify-center shadow-sm mb-6 border border-aura-100 animate-float">
+                      <Sparkles className="w-8 h-8 text-aura-400" />
                     </div>
-                    <h2 className="text-2xl font-bold text-stone-800 mb-2">Good afternoon.</h2>
-                    <p className="text-stone-500">I'm listening.</p>
+                    <h2 className="text-2xl font-bold text-stone-800 mb-2 font-serif">Good afternoon.</h2>
+                    <p className="text-stone-500">I'm ready when you are.</p>
                   </div>
                 )}
 
@@ -450,7 +447,7 @@ function App() {
                     <div className={`flex max-w-2xl ${msg.type === 'user' ? 'flex-row-reverse' : 'flex-row'} items-start gap-5`}>
                       <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold tracking-wider shadow-sm ${
                         msg.type === 'user' ? 'bg-stone-800 text-stone-100' : 
-                        currentMode === 'fasterbook' ? 'bg-orange-100 text-orange-600' : 'bg-white border border-stone-200 text-vintage-600'
+                        currentMode === 'fasterbook' ? 'bg-lively-100 text-lively-600' : 'bg-white border border-aura-200 text-aura-600'
                       }`}>
                         {msg.type === 'user' ? 'YOU' : 'AI'}
                       </div>
@@ -482,9 +479,9 @@ function App() {
                 {isTyping && (
                   <div className="flex justify-start animate-fade-in pl-14">
                     <div className="flex space-x-1.5">
-                      <div className="w-1.5 h-1.5 bg-vintage-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 bg-vintage-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 bg-vintage-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                      <div className="w-1.5 h-1.5 bg-aura-300 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <div className="w-1.5 h-1.5 bg-aura-300 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <div className="w-1.5 h-1.5 bg-aura-300 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
                     </div>
                   </div>
                 )}
@@ -495,16 +492,16 @@ function App() {
               <div className="p-6 pb-8">
                 <div className="max-w-3xl mx-auto">
                   {uploadError && (
-                    <div className="mb-3 px-4 py-2 bg-clay-50 border border-clay-100 text-clay-500 text-xs font-medium rounded-lg flex justify-between items-center">
+                    <div className="mb-3 px-4 py-2 bg-lively-50 border border-lively-100 text-lively-500 text-xs font-medium rounded-lg flex justify-between items-center">
                       <span>{uploadError}</span>
-                      <button onClick={() => setUploadError(null)} className="hover:text-clay-700">Dismiss</button>
+                      <button onClick={() => setUploadError(null)} className="hover:text-lively-700">Dismiss</button>
                     </div>
                   )}
 
                   <div className={`relative flex items-end gap-2 p-2 rounded-3xl border transition-all duration-300 shadow-sm ${
                     currentMode === 'fasterbook' 
-                      ? 'bg-orange-50/50 border-orange-200 focus-within:ring-2 focus-within:ring-orange-100' 
-                      : 'bg-white border-stone-200 focus-within:shadow-md focus-within:border-vintage-200'
+                      ? 'bg-lively-50/50 border-lively-200 focus-within:ring-2 focus-within:ring-lively-100' 
+                      : 'bg-white border-stone-200 focus-within:shadow-md focus-within:border-aura-200'
                   }`}>
                     
                     <input type="file" id="file-upload" className="hidden" onChange={handleQuickFileUpload} disabled={isUploadingFile || currentMode === 'fasterbook'} />
@@ -538,8 +535,8 @@ function App() {
                         !input.trim() || isTyping
                           ? 'bg-stone-100 text-stone-300'
                           : currentMode === 'fasterbook' 
-                            ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600'
-                            : 'bg-stone-900 text-white shadow-lg shadow-stone-900/20 hover:bg-black'
+                            ? 'bg-lively-500 text-white shadow-lg shadow-lively-500/20 hover:bg-lively-600'
+                            : 'bg-aura-600 text-white shadow-lg shadow-aura-600/20 hover:bg-aura-700'
                       }`}
                     >
                       <Send className="w-5 h-5" />
