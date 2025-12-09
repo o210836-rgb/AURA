@@ -5,48 +5,49 @@ export default {
     extend: {
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
-        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        serif: ['"Playfair Display"', 'Georgia', 'serif'], // Essential for the vintage nautical look
       },
       colors: {
-        // "Stone": Warm, vintage paper background (unchanged)
-        stone: {
-          50: '#fafaf9',
-          100: '#f5f5f4',
-          200: '#e7e5e4',
-          300: '#d6d3d1',
-          400: '#a8a29e',
-          500: '#78716c',
-          600: '#57534e',
-          700: '#44403c',
-          800: '#292524',
-          900: '#1c1917',
+        // "Sand": The warm, vintage paper/beach background
+        sand: {
+          50: '#fdfcf8',
+          100: '#f5f5f0',
+          200: '#e6e5dd',
+          300: '#d6d4c8',
+          400: '#a8a599',
+          500: '#7e7b70',
+          600: '#5e5c52',
+          700: '#45433b',
+          800: '#2b2a25',
+          900: '#1a1916',
         },
-        // "Iris": Deep, Rich Purple (The theme you requested)
-        iris: {
-          50: '#f5f3ff',
-          100: '#ede9fe',
-          200: '#ddd6fe',
-          300: '#c4b5fd',
-          400: '#a78bfa',
-          500: '#8b5cf6', 
-          600: '#7c3aed', // PRIMARY BRAND COLOR
-          700: '#6d28d9', // Darker Purple
-          800: '#5b21b6', // Deep Velvet
-          900: '#4c1d95', // Midnight
-          950: '#2e1065', // Ink
+        // "Tide": Vintage Sky & Ocean (Muted, Dusty Blues/Teals)
+        tide: {
+          50: '#f0f9ff',  // Sea Foam
+          100: '#e0f2fe', // Pale Sky
+          200: '#bae6fd', // Light Blue
+          300: '#7dd3fc', // Sky
+          400: '#38bdf8', // Azure
+          500: '#0ea5e9', // Ocean
+          600: '#0284c7', // Deep Water
+          700: '#0369a1', // Vintage Denim
+          800: '#075985', // Navy
+          900: '#0c4a6e', // Midnight Depth
+          950: '#082f49',
         },
-        // "Amethyst": A soft secondary accent (Pinkish-Purple)
-        amethyst: {
-          50: '#fdf4ff',
-          100: '#fae8ff',
-          500: '#d946ef',
-          600: '#c026d3',
+        // "Coral": Subtle reef accents
+        coral: {
+          50: '#fff1f2',
+          500: '#f43f5e',
         }
       },
       animation: {
-        'fade-in': 'fadeIn 0.6s ease-out',
-        'slide-up': 'slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
-        'breathe': 'breathe 5s ease-in-out infinite',
+        'fade-in': 'fadeIn 0.8s ease-out',
+        'slide-up': 'slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1)',
+        'wave-slow': 'wave 8s ease-in-out infinite',
+        'wave-fast': 'wave 6s ease-in-out infinite',
+        'float': 'float 6s ease-in-out infinite',
+        'pulse-glow': 'pulseGlow 4s ease-in-out infinite',
       },
       keyframes: {
         fadeIn: {
@@ -54,16 +55,24 @@ export default {
           '100%': { opacity: 1 },
         },
         slideUp: {
-          '0%': { transform: 'translateY(20px)', opacity: 0 },
+          '0%': { transform: 'translateY(30px)', opacity: 0 },
           '100%': { transform: 'translateY(0)', opacity: 1 },
         },
-        breathe: {
-          '0%, 100%': { transform: 'scale(1)', opacity: 0.8 },
-          '50%': { transform: 'scale(1.05)', opacity: 1 },
+        wave: {
+          '0%, 100%': { transform: 'translateY(0) rotate(0deg)' },
+          '50%': { transform: 'translateY(-15px) rotate(1deg)' },
         },
+        float: {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+        pulseGlow: {
+          '0%, 100%': { opacity: 0.6, transform: 'scale(1)' },
+          '50%': { opacity: 0.3, transform: 'scale(1.1)' },
+        }
       },
       backgroundImage: {
-        'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.04'/%3E%3C/svg%3E\")",
+        'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E\")",
       }
     },
   },
